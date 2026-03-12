@@ -36,6 +36,10 @@
 	<string></string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
+	<key>NSMicrophoneUsageDescription</key>
+<string>We need access to your microphone for voice search.</string>
+<key>NSSpeechRecognitionUsageDescription</key>
+<string>We use speech recognition to find products you name.</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>armv7</string>

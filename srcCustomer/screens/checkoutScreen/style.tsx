@@ -1,0 +1,176 @@
+import { StyleSheet } from "react-native";
+
+export const checkoutStyles = StyleSheet.create({
+  container: { flex: 1 },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 16,
+    alignItems: 'center',
+  },
+  headerTitle: { color: 'white', fontSize: 18, fontWeight: 'bold' },
+  scrollContent: { padding: 16 },
+
+  sectionCard: {
+    backgroundColor: '#161B26',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  sectionTitle: { color: 'white', fontSize: 16, fontWeight: '700' },
+  changeText: { color: '#818CF8', fontWeight: '600' },
+
+  addAddressPlaceholder: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 12,
+  },
+  addAddressText: { color: '#94A3B8', marginTop: 8 },
+
+  addressInfoRow: { flexDirection: 'row', alignItems: 'center' },
+  addressIconBox: {
+    backgroundColor: '#1E293B',
+    padding: 10,
+    borderRadius: 10,
+    marginRight: 12,
+  },
+  addressName: { color: 'white', fontSize: 16, fontWeight: '600' },
+  addressSub: { color: '#94A3B8', fontSize: 13 },
+
+  outsideLabel: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  deliveryRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
+  deliveryBox: {
+    flex: 1,
+    backgroundColor: '#161B26',
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  activeBox: { borderColor: '#4F46E5', backgroundColor: '#1E2235' },
+  deliveryTitle: {
+    color: '#64748B',
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 8,
+  },
+  deliverySub: { color: '#64748B', fontSize: 12 },
+  activeText: { color: 'white' },
+
+  paymentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#161B26',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 12,
+  },
+  iconCircle: { padding: 8, borderRadius: 8, marginRight: 12 },
+  paymentTitle: { color: 'white', fontSize: 15, fontWeight: '600' },
+  paymentSub: { color: '#64748B', fontSize: 12 },
+
+  summaryCard: {
+    backgroundColor: '#161B26',
+    borderRadius: 16,
+    padding: 20,
+    marginTop: 10,
+  },
+  summaryHeader: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  summaryLabel: { color: '#94A3B8', fontSize: 14 },
+  summaryValue: { color: 'white', fontSize: 14, fontWeight: '600' },
+  divider: {
+    height: 1,
+    backgroundColor: '#334155',
+    marginVertical: 8,
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  totalLabel: { color: 'white', fontSize: 18, fontWeight: 'bold' },
+  totalValue: { color: '#F43F5E', fontSize: 18, fontWeight: 'bold' },
+
+  footer: {
+    padding: 16,
+    backgroundColor: '#0B0F19',
+    borderTopWidth: 1,
+    borderTopColor: '#1E293B',
+  },
+  placeOrderBtn: {
+    backgroundColor: '#4F46E5',
+    borderRadius: 16,
+    height: 56,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  placeOrderText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+
+  // Sheet Styles
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#161B26',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    maxHeight: '70%',
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  sheetTitle: { color: 'white', fontSize: 20, fontWeight: 'bold' },
+  addrItem: {
+    flexDirection: 'row',
+    padding: 16,
+    backgroundColor: '#1E293B',
+    borderRadius: 16,
+    marginBottom: 12,
+  },
+  addrIcon: {
+    padding: 10,
+    backgroundColor: '#2D3748',
+    borderRadius: 10,
+    marginRight: 12,
+  },
+  addrName: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+  addrStreet: { color: '#94A3B8', fontSize: 13 },
+  addNewBtn: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: '#4F46E5',
+  },
+  addNewText: { color: 'white', marginLeft: 8, fontWeight: '600' },
+});
