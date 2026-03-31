@@ -18,14 +18,14 @@ import { useCartStore } from '../../store/useCartStore';
 import { useFocusEffect } from '@react-navigation/native';
 import { useToast } from '../../components/ToastContext';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '../../../ThemeContext'; // Import your theme hook
+import { useTheme } from '../../../ThemeContext';
 
 const FREE_DELIVERY_THRESHOLD = 1000;
 
 const CartScreen = ({ navigation }: any) => {
   const { t } = useTranslation();
   const { colors, isDark } = useTheme();
-  const styles = makeStyles(colors);
+  const styles = makeStyles(colors, isDark);
 
   const {
     items,
@@ -38,6 +38,7 @@ const CartScreen = ({ navigation }: any) => {
     removeItem,
     applyPromoCode,
     promoCode,
+    billTotal
   } = useCartStore();
 
   const { showToast } = useToast();
@@ -49,24 +50,19 @@ const CartScreen = ({ navigation }: any) => {
     }, []),
   );
 
-  // Calculations
   const tot = parseFloat(itemTotal);
   const DELIVERY_FEE = parseFloat(shipping);
-  const vat = tot * 0.05;
-  const grandTotal = tot > 0 ? tot + DELIVERY_FEE + vat : 0;
+  const vat = parseFloat(tax);
+  const grandTotal = parseFloat(billTotal);
   const remainingForFree = Math.max(0, FREE_DELIVERY_THRESHOLD - tot);
   const progressPercent = Math.min(1, tot / FREE_DELIVERY_THRESHOLD);
 
   const handleQtyChange = async (id: string, delta: number) => {
-    console.log('id is', id);
-    
     try {
+      if (delta < 1) return; // Prevent negative/zero qty through this handler
       await updateQty(id, delta);
     } catch (error: any) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.message ||
-        'Failed to update quantity';
+      const errorMsg = error?.response?.data?.message || error?.message || 'Failed to update';
       showToast(errorMsg, 'error');
     }
   };
@@ -79,49 +75,21 @@ const CartScreen = ({ navigation }: any) => {
     }
   };
 
-  const handleApplyPromo = async () => {
-    if (!promoInput.trim()) return;
-    try {
-      await applyPromoCode(promoInput);
-      setPromoInput('');
-      showToast('Promo applied!');
-    } catch (error: any) {
-      showToast(error?.response?.data?.detail || 'Invalid Code');
-    }
-  };
-
-  const handleRemovePromo = async () => {
-    try {
-      await applyPromoCode('');
-      showToast('Promo removed');
-    } catch (error: any) {
-      showToast('Failed to remove promo');
-    }
-  };
-
   if (loading) {
     return (
       <View style={styles.fullScreenLoader}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={{ color: colors.text, marginTop: 10 }}>
-          {t('updating_cart')}
-        </Text>
+        <Text style={{ color: colors.text, marginTop: 10 }}>{t('updating_cart')}</Text>
       </View>
     );
   }
 
-  // Header Component for reuse
   const renderHeader = (count: number) => (
     <View style={styles.header}>
-      <TouchableOpacity
-        onPress={() => navigation.goBack()}
-        style={styles.backBtn}
-      >
+      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
         <Icon xml={SVG_ICONS.backIcon} color={colors.text} />
       </TouchableOpacity>
-      <Text style={styles.headerTitle}>
-        {t('cart')} ({count})
-      </Text>
+      <Text style={styles.headerTitle}>{t('cart')} ({count})</Text>
     </View>
   );
 
@@ -132,11 +100,7 @@ const CartScreen = ({ navigation }: any) => {
         {renderHeader(0)}
         <View style={styles.emptyContainer}>
           <View style={styles.emptyCenter}>
-            <Icon
-              xml={SVG_ICONS.productsBag}
-              size={80}
-              color={colors.textMuted}
-            />
+            <Icon xml={SVG_ICONS.productsBag} size={80} color={colors.textMuted} />
             <Text style={styles.emptyText}>{t('cart_empty')}</Text>
             <TouchableOpacity onPress={() => navigation.navigate('Products')}>
               <Text style={styles.startShopping}>{t('start_shopping')}</Text>
@@ -147,80 +111,56 @@ const CartScreen = ({ navigation }: any) => {
     );
   }
 
-  console.log('item is', items);
-  
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       {renderHeader(items.length)}
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* Progress Bar */}
-        <View style={styles.progressCard}>
+        {/* <View style={styles.progressCard}>
           <View style={styles.progressHeader}>
             <Text style={styles.progressText}>
               {remainingForFree > 0
-                ? `Add AED ${remainingForFree.toFixed(2)} for Free Delivery`
-                : 'You unlocked Free Delivery!'}
+                ? `${t('add')} AED ${remainingForFree.toFixed(2)} ${t('for_free_delivery')}`
+                : t('free_delivery_unlocked')}
             </Text>
             <Icon xml={SVG_ICONS.truckIcon} size={16} color="white" />
           </View>
           <View style={styles.progressBarBg}>
-            <View
-              style={[
-                styles.progressBarFill,
-                { width: `${progressPercent * 100}%` },
-              ]}
-            />
+            <View style={[styles.progressBarFill, { width: `${progressPercent * 100}%` }]} />
           </View>
-        </View>
+        </View> */}
 
         {/* Cart Items */}
         {items.map((item: any) => (
           <View key={item.id} style={styles.itemCard}>
-            <Image
-              source={{ uri: item.product_image }}
-              style={styles.itemImage}
-            />
+            <Image source={{ uri: item.product_image }} style={styles.itemImage} />
             <View style={styles.itemDetails}>
               <View style={styles.itemHeader}>
                 <Text style={styles.itemName} numberOfLines={1}>
                   {item?.product_name}
                 </Text>
-                <TouchableOpacity onPress={() => handleRemove(item.id)}>
-                  <Icon
-                    xml={SVG_ICONS.deleteIcon}
-                    size={16}
-                    color={colors.danger}
-                  />
+                <TouchableOpacity 
+                  onPress={() => handleRemove(item.id)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  style={styles.deleteBtn}
+                >
+                  <Icon xml={SVG_ICONS.deleteIcon} size={16} color={colors.danger} />
                 </TouchableOpacity>
               </View>
+              
               <View style={styles.itemFooter}>
                 <Text style={styles.itemPrice}>
-                  AED {parseFloat(item?.unit_price).toFixed(2)}
+                  AED {parseFloat(item?.total_price).toFixed(2)}
                 </Text>
                 <View style={styles.qtyControl}>
-                  <TouchableOpacity
-                    onPress={() => handleQtyChange(item.id, item.quantity - 1)}
-                  >
-                    <Icon
-                      xml={SVG_ICONS.minusIcon}
-                      size={16}
-                      color={colors.text}
-                    />
+                  <TouchableOpacity onPress={() => handleQtyChange(item.id, item.quantity - 1)}>
+                    <Icon xml={SVG_ICONS.minusIcon} size={14} color={colors.text} />
                   </TouchableOpacity>
                   <Text style={styles.qtyText}>{item.quantity}</Text>
-                  <TouchableOpacity
-                    onPress={() => handleQtyChange(item.id, item.quantity + 1)}
-                  >
-                    <Icon
-                      xml={SVG_ICONS.plusIcon}
-                      size={16}
-                      color={colors.text}
-                    />
+                  <TouchableOpacity onPress={() => handleQtyChange(item.id, item.quantity + 1)}>
+                    <Icon xml={SVG_ICONS.plusIcon} size={14} color={colors.text} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -231,60 +171,18 @@ const CartScreen = ({ navigation }: any) => {
         {/* Instructions */}
         <View style={styles.inputCard}>
           <View style={styles.inputHeader}>
-            <Icon
-              xml={SVG_ICONS.descriptionIcon}
-              size={16}
-              color={colors.primary}
-            />
+            <Icon xml={SVG_ICONS.descriptionIcon} size={16} color={colors.primary} />
             <Text style={styles.inputTitle}>{t('order_instructions')}</Text>
           </View>
           <TextInput
-            placeholder="e.g., Deliver to rear entrance..."
+            placeholder={t('delivery_instruction_placeholder')}
             placeholderTextColor={colors.textMuted}
             style={styles.textInput}
+            multiline
           />
         </View>
 
-        {/* Promo Code */}
-        {/* {promoCode && promoCode.trim() !== '' ? (
-          <View style={[styles.inputCard, styles.promoAppliedRow]}>
-            <View style={styles.promoInfo}>
-              <Icon
-                xml={SVG_ICONS.promoTagIcon}
-                size={16}
-                color={colors.success}
-              />
-              <Text style={styles.appliedPromoText}>{promoCode}</Text>
-              <View style={styles.appliedBadge}>
-                <Text style={styles.appliedBadgeText}>{t('applied')}</Text>
-              </View>
-            </View>
-            <TouchableOpacity onPress={handleRemovePromo}>
-              <Text style={styles.removeText}>{t('remove')}</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={[styles.inputCard, styles.promoRow]}>
-            <Icon
-              xml={SVG_ICONS.promoTagIcon}
-              size={14}
-              color={colors.textMuted}
-            />
-            <TextInput
-              placeholder="Promo Code"
-              placeholderTextColor={colors.textMuted}
-              style={[styles.textInput, { flex: 1, marginTop: 0 }]}
-              value={promoInput}
-              onChangeText={setPromoInput}
-              autoCapitalize="characters"
-            />
-            <TouchableOpacity onPress={handleApplyPromo}>
-              <Text style={styles.applyText}>{t('apply')}</Text>
-            </TouchableOpacity>
-          </View>
-        )} */}
-
-        {/* Billing Section */}
+        {/* Bill Section */}
         <View style={styles.billCard}>
           <Text style={styles.billHeader}>{t('bill_details')}</Text>
           <View style={styles.billRow}>
@@ -296,20 +194,18 @@ const CartScreen = ({ navigation }: any) => {
             <Text style={styles.billValue}>AED {DELIVERY_FEE.toFixed(2)}</Text>
           </View>
           <View style={styles.billRow}>
-            <Text style={styles.billLabel}>VAT (5%)</Text>
+            <Text style={styles.billLabel}>{t('vat')} (5%)</Text>
             <Text style={styles.billValue}>AED {vat.toFixed(2)}</Text>
           </View>
           <View style={styles.dashedDivider} />
           <View style={styles.billRow}>
             <Text style={styles.grandTotalLabel}>{t('grand_total')}</Text>
-            <Text style={styles.grandTotalValue}>
-              AED {grandTotal.toFixed(2)}
-            </Text>
+            <Text style={styles.grandTotalValue}>AED {grandTotal.toFixed(2)}</Text>
           </View>
         </View>
       </ScrollView>
 
-      {/* Checkout Button */}
+      {/* Checkout Footer */}
       <View style={styles.checkoutFooter}>
         <TouchableOpacity
           onPress={() => NavigationService.navigate('Checkout', { grandTotal })}
@@ -324,183 +220,124 @@ const CartScreen = ({ navigation }: any) => {
   );
 };
 
-const makeStyles = (colors: any) =>
+const makeStyles = (colors: any, isDark: boolean) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      padding: 20,
-      gap: 15,
-    },
-    headerTitle: { color: colors.text, fontSize: 24, fontWeight: 'bold' },
-    backBtn: { padding: 5 },
-    scrollContent: { padding: 16 },
+    header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16,paddingVertical:10, gap: 12 },
+    headerTitle: { color: colors.text, fontSize: 22, fontWeight: 'bold' },
+    backBtn: { padding: 4 },
+    scrollContent: { padding: 16, paddingBottom: 120 },
 
-    // Progress
+    // Progress Section
     progressCard: {
-      backgroundColor: colors.isDark ? colors.surfaceVariant : colors.primary,
-      padding: 16,
-      borderRadius: 16,
-      marginBottom: 20,
+      backgroundColor: isDark ? colors.surfaceVariant : colors.primary,
+      padding: 14,
+      borderRadius: 12,
+      marginBottom: 16,
     },
-    progressHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginBottom: 12,
-    },
-    progressText: { color: 'white', fontWeight: 'bold', fontSize: 14 },
-    progressBarBg: {
-      height: 6,
-      backgroundColor: 'rgba(255,255,255,0.2)',
-      borderRadius: 3,
-    },
-    progressBarFill: {
-      height: '100%',
-      backgroundColor: 'white',
-      borderRadius: 3,
-    },
+    progressHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+    progressText: { color: 'white', fontWeight: '700', fontSize: 13, flex: 1, marginRight: 8 },
+    progressBarBg: { height: 6, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 3 },
+    progressBarFill: { height: '100%', backgroundColor: 'white', borderRadius: 3 },
 
-    // Items
+    // Item Cards (Responsive Logic)
     itemCard: {
       flexDirection: 'row',
       backgroundColor: colors.surface,
-      borderRadius: 16,
-      padding: 12,
-      marginBottom: 12,
+      borderRadius: 12,
+      padding: 10,
+      marginBottom: 10,
       borderWidth: 1,
       borderColor: colors.border,
+      alignItems: 'center',
     },
-    itemImage: {
-      width: 80,
-      height: 80,
-      borderRadius: 12,
-      backgroundColor: colors.background,
+    itemImage: { width: 70, height: 70, borderRadius: 8, backgroundColor: colors.background },
+    itemDetails: { flex: 1, marginLeft: 10, justifyContent: 'center' },
+    itemHeader: { 
+      flexDirection: 'row', 
+      justifyContent: 'space-between', 
+      alignItems: 'flex-start',
+      marginBottom: 8 
     },
-    itemDetails: { flex: 1, marginLeft: 12, justifyContent: 'space-between' },
-    itemHeader: { flexDirection: 'row', justifyContent: 'space-between' },
-    itemName: { color: colors.text, fontSize: 16, fontWeight: '600' },
+    itemName: { 
+      color: colors.text, 
+      fontSize: 15, 
+      fontWeight: '600', 
+      flex: 1, // Ensures name takes available space and doesn't push delete btn
+      marginRight: 10 
+    },
+    deleteBtn: { padding: 2 },
     itemFooter: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
+      flexWrap: 'wrap', // Allows wrapping on extremely narrow screens
+      gap: 5
     },
-    itemPrice: { color: colors.primary, fontSize: 18, fontWeight: 'bold' },
+    itemPrice: { color: colors.primary, fontSize: 16, fontWeight: 'bold' },
     qtyControl: {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: colors.background,
-      borderRadius: 8,
-      padding: 4,
+      borderRadius: 6,
+      paddingVertical: 4,
       paddingHorizontal: 8,
-      gap: 12,
+      gap: 10,
       borderWidth: 1,
       borderColor: colors.border,
     },
-    qtyText: { color: colors.text, fontWeight: 'bold' },
+    qtyText: { color: colors.text, fontWeight: 'bold', fontSize: 14, minWidth: 20, textAlign: 'center' },
 
-    // Inputs
+    // Instructions
     inputCard: {
       backgroundColor: colors.surface,
-      borderRadius: 16,
-      padding: 16,
+      borderRadius: 12,
+      padding: 14,
       marginBottom: 12,
       borderWidth: 1,
       borderColor: colors.border,
     },
     inputHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    inputTitle: { color: colors.text, fontWeight: 'bold' },
-    textInput: { color: colors.text, marginTop: 10, fontSize: 14 },
-    promoRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    applyText: { color: colors.primary, fontWeight: 'bold' },
+    inputTitle: { color: colors.text, fontWeight: 'bold', fontSize: 14 },
+    textInput: { color: colors.text, marginTop: 8, fontSize: 13, textAlignVertical: 'top' },
 
-    // Applied Promo
-    promoAppliedRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      backgroundColor: `${colors.success}15`,
-      borderColor: colors.success,
-      borderWidth: 1,
-      padding: 14,
-    },
-    promoInfo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    appliedPromoText: { color: colors.text, fontWeight: 'bold', fontSize: 14 },
-    appliedBadge: {
-      backgroundColor: colors.success,
-      paddingHorizontal: 6,
-      paddingVertical: 2,
-      borderRadius: 4,
-    },
-    appliedBadgeText: { color: 'white', fontSize: 10, fontWeight: 'bold' },
-    removeText: { color: colors.danger, fontWeight: 'bold' },
-
-    // Bill
+    // Billing
     billCard: {
       backgroundColor: colors.surface,
-      borderRadius: 16,
-      padding: 16,
-      marginBottom: 100,
+      borderRadius: 12,
+      padding: 14,
       borderWidth: 1,
       borderColor: colors.border,
     },
-    billHeader: {
-      color: colors.text,
-      fontSize: 18,
-      fontWeight: 'bold',
-      marginBottom: 15,
-    },
-    billRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginBottom: 10,
-    },
-    billLabel: { color: colors.textMuted },
-    billValue: { color: colors.text, fontWeight: 'bold' },
-    dashedDivider: {
-      height: 1,
-      borderTopWidth: 1,
-      borderColor: colors.border,
-      borderStyle: 'dashed',
-      marginVertical: 10,
-    },
-    grandTotalLabel: { color: colors.text, fontSize: 20, fontWeight: 'bold' },
-    grandTotalValue: { color: colors.danger, fontSize: 20, fontWeight: 'bold' },
+    billHeader: { color: colors.text, fontSize: 16, fontWeight: 'bold', marginBottom: 12 },
+    billRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+    billLabel: { color: colors.textMuted, fontSize: 14 },
+    billValue: { color: colors.text, fontWeight: '600', fontSize: 14 },
+    dashedDivider: { height: 1, borderTopWidth: 1, borderColor: colors.border, borderStyle: 'dashed', marginVertical: 8 },
+    grandTotalLabel: { color: colors.text, fontSize: 18, fontWeight: 'bold' },
+    grandTotalValue: { color: colors.danger, fontSize: 18, fontWeight: 'bold' },
 
     // Empty State
-    emptyContainer: { flex: 1, justifyContent: 'center' },
-    emptyCenter: { alignItems: 'center', marginTop: -100 },
-    emptyText: { color: colors.textMuted, fontSize: 18, marginTop: 20 },
-    startShopping: {
-      color: colors.primary,
-      fontSize: 18,
-      fontWeight: 'bold',
-      marginTop: 10,
-    },
+    emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    emptyCenter: { alignItems: 'center', paddingBottom: 50 },
+    emptyText: { color: colors.textMuted, fontSize: 16, marginTop: 16 },
+    startShopping: { color: colors.primary, fontSize: 16, fontWeight: 'bold', marginTop: 8 },
 
     // Footer
     checkoutFooter: {
       position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      padding: 20,
+      bottom: 0, left: 0, right: 0,
+      padding: 16,
       backgroundColor: colors.background,
       borderTopWidth: 1,
       borderTopColor: colors.border,
     },
-    checkoutBtn: {
-      backgroundColor: colors.primary,
-      padding: 18,
-      borderRadius: 16,
-      alignItems: 'center',
-    },
-    checkoutBtnText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
+    checkoutBtn: { backgroundColor: colors.primary, padding: 16, borderRadius: 12, alignItems: 'center' },
+    checkoutBtnText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
 
     fullScreenLoader: {
       ...StyleSheet.absoluteFillObject,
       backgroundColor: colors.background,
-      opacity: 0.95,
       justifyContent: 'center',
       alignItems: 'center',
       zIndex: 999,

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,159 +10,111 @@ import {
   TouchableOpacity,
   StyleSheet,
   StatusBar,
+  Platform,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage'; // Added for persistence
 import PromoCarousel from '../../components/carousel/PromoCarousel';
 import ProductCardComponent from '../../components/ProductCardComponent';
+import CategoryCard from '../../components/CategoryCard';
 import { useSearchStore } from '../../store/useSearchStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useIsFocused } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '../../components/ToastContext';
-import { useTheme } from '../../../ThemeContext'; // Integrated Theme
+import { useTheme } from '../../../ThemeContext';
+import { SVG_ICONS } from '../../assets/icons/svg';
+import Icon from '../../../Icon';
+import i18n from '../../utilities/i18n'; // Added to change language globally
 
 import {
   getFeaturedProducts,
   getTodaysDeals,
   getHeroBanners,
   getExclusiveOffers,
+  mainCategory,
 } from '../../api/products/productsApi';
-import { setNewPassword } from '../../api/auth/authApi';
 
-const CustomerHomeScreen = () => {
+const MAX_HOME_CATEGORIES = 4; // Only 4 for the home screen grid
+const CATEGORY_GRADIENTS = [
+  ['#10B981', '#059669'], // Fresh Market (Green)
+  ['#3B82F6', '#2563EB'], // Frozen Goods (Blue)
+  ['#F59E0B', '#D97706'], // Chilled & Dairy (Orange)
+  ['#EC4899', '#DB2777'], // Pantry (Pink)
+];
+
+const CustomerHomeScreen = ({ navigation }: any) => {
   const { t } = useTranslation();
   const { colors, isDark } = useTheme();
   const styles = makeStyles(colors);
-  const { showToast } = useToast();
-
-  const searchText = useSearchStore(state => state.searchText);
-  const { hasPasswordChanged, setAuth, refreshToken, accessToken } =
-    useAuthStore();
   const isFocused = useIsFocused();
 
-  // Data States
-  const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
   const [todaysDeals, setTodaysDeals] = useState<any[]>([]);
-  const [exclusiveOffers, setExclusiveOffers] = useState<any[]>([]);
+  const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
   const [heroBanners, setHeroBanners] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [timeLeft, setTimeLeft] = useState('');
 
-  // Password Modal States
-  const [newPassword, setNewPasswordInput] = useState('');
-  const [confirmPassword, setConfirmPasswordInput] = useState('');
-  const [isSubmittingPwd, setIsSubmittingPwd] = useState(false);
-  const [showPwdModal, setShowPwdModal] = useState(false);
-  const [localError, setLocalError] = useState<string | null>(null);
-
-  const validations = {
-    length: newPassword.length >= 8,
-    upper: /[A-Z]/.test(newPassword),
-    lower: /[a-z]/.test(newPassword),
-    special: /[@$!%*?&#]/.test(newPassword),
-  };
-
+  // Timer Calculation Logic
   useEffect(() => {
-    if (isFocused && hasPasswordChanged === false) {
-      setShowPwdModal(true);
-    }
-  }, [isFocused, hasPasswordChanged]);
+    if (todaysDeals.length === 0) return;
+
+    const timer = setInterval(() => {
+      const now = new Date().getTime();
+      const end = new Date(todaysDeals[0].end_time).getTime();
+      const distance = end - now;
+
+      if (distance < 0) {
+        setTimeLeft('00:00:00');
+        clearInterval(timer);
+      } else {
+        const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+        let formattedTime = '';
+        if (days > 0) formattedTime += `${days}d `;
+        formattedTime += `${hours.toString().padStart(2, '0')}h `;
+        formattedTime += `${minutes.toString().padStart(2, '0')}m `;
+        formattedTime += `${seconds.toString().padStart(2, '0')}s`;
+
+        setTimeLeft(formattedTime);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [todaysDeals]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [bannersRes, featuredRes, dealsRes, exclusiveRes] =
-          await Promise.all([
-            getHeroBanners().catch(() => []),
-            getFeaturedProducts().catch(() => []),
-            getTodaysDeals().catch(() => []),
-            getExclusiveOffers().catch(() => []),
-          ]);
+        // 1. Check and Set Saved Language BEFORE fetching data
+        const savedLanguage = await AsyncStorage.getItem('user-language');
+        if (savedLanguage && i18n.language !== savedLanguage) {
+          await i18n.changeLanguage(savedLanguage);
+        }
 
-        setHeroBanners(
-          (bannersRes || []).map((b: any) => ({
-            title: b.title || 'Special Offer',
-            subtitle: b.subtitle || '',
-            offerTag: b.discount_text || '',
-            image:
-              b.background_image_url || 'https://via.placeholder.com/800x400',
-            buttonColor: colors.primary, // Use theme primary color
-          })),
-        );
+        // 2. Fetch API Data
+        const [bannersRes, featuredRes, dealsRes, categoriesRes] = await Promise.all([
+          getHeroBanners().catch(() => []),
+          getFeaturedProducts().catch(() => []),
+          getTodaysDeals().catch(() => []),
+          mainCategory({ search: '' }).catch(() => []),
+        ]);
 
+        setHeroBanners(bannersRes || []);
         setFeaturedProducts(featuredRes || []);
         setTodaysDeals(dealsRes || []);
-        setExclusiveOffers(exclusiveRes || []);
+        setCategories((categoriesRes || []).slice(0, MAX_HOME_CATEGORIES));
+      } catch (error) {
+        console.error('Fetch error:', error);
       } finally {
         setIsInitialLoading(false);
       }
     };
     fetchData();
   }, [isFocused]);
-
-  // console.log('featured is', featuredProducts);
-  // console.log('todays deals is', todaysDeals);
-  // console.log('exclusive offers is', exclusiveOffers);
-  
-
-  const handleUpdatePassword = async () => {
-    setLocalError(null);
-    if (!newPassword || !confirmPassword) {
-      setLocalError(t('please_fill_all_fields'));
-      return;
-    }
-
-    const allValid = Object.values(validations).every(v => v);
-    if (!allValid) {
-      setLocalError(t('please_fix_password_requirements'));
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setLocalError(t('passwords_do_not_match'));
-      return;
-    }
-
-    setIsSubmittingPwd(true);
-    try {
-      await setNewPassword({
-        new_password: newPassword,
-        confirm_new_password: confirmPassword,
-      });
-
-      setAuth(refreshToken!, accessToken!, true);
-      setShowPwdModal(false);
-      setTimeout(
-        () => showToast(t('password_updated_success'), 'success'),
-        600,
-      );
-    } catch (error: any) {
-      setLocalError(
-        error?.response?.data?.message || t('failed_to_update_password'),
-      );
-    } finally {
-      setIsSubmittingPwd(false);
-    }
-  };
-
-  const Requirement = ({ met, label }: { met: boolean; label: string }) => (
-    <View style={styles.reqRow}>
-      <View
-        style={[
-          styles.bullet,
-          {
-            backgroundColor: met ? colors.success || '#22C55E' : colors.border,
-          },
-        ]}
-      />
-      <Text
-        style={[
-          styles.reqText,
-          { color: met ? colors.text : colors.textMuted },
-        ]}
-      >
-        {label}
-      </Text>
-    </View>
-  );
 
   if (isInitialLoading) {
     return (
@@ -176,207 +128,129 @@ const CustomerHomeScreen = () => {
     <View style={styles.container}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       <ScrollView showsVerticalScrollIndicator={false}>
-        <PromoCarousel data={heroBanners.length > 0 ? heroBanners : []} />
+        <PromoCarousel data={heroBanners} />
 
-        <View style={styles.sectionContainer}>
-          {featuredProducts.length > 0 && (
-            <View style={styles.sectionWrapper}>
-              <Text style={styles.sectionTitle}>{t('featured_products')}</Text>
-              <FlatList
-                data={featuredProducts}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                // keyExtractor={item => item?.id?.toString()}
-                contentContainerStyle={styles.listPadding}
-                renderItem={({ item }) => <ProductCardComponent item={item} />}
-              />
-            </View>
-          )}
-
-          {todaysDeals.length > 0 && (
-            <View style={styles.sectionWrapper}>
-              <Text style={styles.sectionTitle}>{t('daily_deals')}</Text>
-              <FlatList
-                data={todaysDeals}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                // keyExtractor={item => item.id.toString()}
-                contentContainerStyle={styles.listPadding}
-                renderItem={({ item }) => <ProductCardComponent item={item} />}
-              />
-            </View>
-          )}
-
-          {exclusiveOffers.length > 0 && (
-            <View style={styles.sectionWrapper}>
-              <Text style={styles.sectionTitle}>{t('exclusive_offers')}</Text>
-              <FlatList
-                data={exclusiveOffers}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                keyExtractor={item => item.id.toString()}
-                contentContainerStyle={styles.listPadding}
-                renderItem={({ item }) => <ProductCardComponent item={item} />}
-              />
-            </View>
-          )}
-        </View>
-      </ScrollView>
-
-      {/* Password Modal */}
-      <Modal visible={showPwdModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>{t('update_password')}</Text>
-            <Text style={styles.modalSub}>{t('set_your_new_password')}</Text>
-
-            {localError && (
-              <View style={styles.errorContainer}>
-                <Text style={styles.localErrorText}>{localError}</Text>
+        {/* ── FLASH SALES SECTION ── */}
+        {todaysDeals.length > 0 && (
+          <View style={styles.sectionWrapper}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={styles.titleWithTimer}>
+                <Text style={styles.sectionTitle}>{t('flash_sales')}</Text>
+                <View style={styles.timerBadge}>
+                  <Icon xml={SVG_ICONS.dealsTimer} size={12} color="red" />
+                  <Text style={styles.timerText}>{timeLeft}</Text>
+                </View>
               </View>
-            )}
-
-            <TextInput
-              style={styles.input}
-              placeholder={t('new_password')}
-              placeholderTextColor={colors.textMuted}
-              secureTextEntry
-              onChangeText={val => {
-                setNewPasswordInput(val);
-                setLocalError(null);
-              }}
-            />
-
-            <View style={styles.reqContainer}>
-              <Requirement
-                met={validations.length}
-                label={t('password_min_length')}
-              />
-              <Requirement
-                met={validations.upper}
-                label={t('password_uppercase')}
-              />
-              <Requirement
-                met={validations.lower}
-                label={t('password_lowercase')}
-              />
-              <Requirement
-                met={validations.special}
-                label={t('password_special')}
-              />
             </View>
 
-            <TextInput
-              style={styles.input}
-              placeholder={t('confirm_password')}
-              placeholderTextColor={colors.textMuted}
-              secureTextEntry
-              onChangeText={val => {
-                setConfirmPasswordInput(val);
-                setLocalError(null);
-              }}
-            />
-
-            <TouchableOpacity
-              style={[
-                styles.btn,
-                (isSubmittingPwd ||
-                  !Object.values(validations).every(v => v)) && {
-                  opacity: 0.5,
-                },
-              ]}
-              onPress={handleUpdatePassword}
-              disabled={isSubmittingPwd}
-            >
-              {isSubmittingPwd ? (
-                <ActivityIndicator color="#FFF" />
-              ) : (
-                <Text style={styles.btnText}>{t('confirm')}</Text>
+            <FlatList
+              data={todaysDeals}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.listPadding}
+              renderItem={({ item }) => (
+                <ProductCardComponent item={item} cardWidth={180} isFlashDeal={true} />
               )}
-            </TouchableOpacity>
+            />
           </View>
-        </View>
-      </Modal>
+        )}
+
+        {/* ── CATEGORIES GRID ── */}
+        {categories.length > 0 && (
+          <View style={styles.sectionWrapper}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>{t('product_categories')}</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Categories')}>
+                <Text style={[styles.viewAllText, { color: colors.primary }]}>{t('view_all')}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.categoryGrid}>
+              {categories.slice(0, 4).map((item, index) => {
+                const gradient = CATEGORY_GRADIENTS[index % CATEGORY_GRADIENTS.length];
+                return (
+                  <View key={item.id} style={styles.categoryGridItem}>
+                    <CategoryCard
+                      title={item.name}
+                      count={item?.categories?.length || 0}
+                      iconName={SVG_ICONS.menuIcon}
+                      useFullBackground={true}
+                      gradientColors={gradient}
+                      showBadge={false}
+                      onChange={() => 
+                        navigation.navigate('SubCategories', { 
+                          categoryId: item.id, 
+                          title: item.name 
+                        })
+                      }
+                    />
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* ── FEATURED PRODUCTS ── */}
+        {featuredProducts.length > 0 && (
+          <View style={styles.sectionWrapper}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>{t('featured_products')}</Text>
+            </View>
+            <FlatList
+              data={featuredProducts}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.listPadding}
+              renderItem={({ item }) => (
+                <ProductCardComponent item={item} cardWidth={180} />
+              )}
+            />
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 };
 
 const makeStyles = (colors: any) =>
   StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
-    loaderContainer: {
-      flex: 1,
-      justifyContent: 'center',
+    container: { flex: 1, backgroundColor: colors.background },
+    loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    sectionWrapper: { marginBottom: 25, marginTop: 10 },
+    sectionHeaderRow: {
+      flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.background,
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      marginBottom: 15,
     },
-    sectionContainer: {
-      paddingVertical: 10,
+    titleWithTimer: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    sectionTitle: { color: colors.text, fontSize: 20, fontWeight: 'bold' },
+    timerBadge: { 
+      backgroundColor: '#F43F5E33', 
+      paddingHorizontal: 8, 
+      paddingVertical: 4, 
+      borderRadius: 6, 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      gap: 5,
+      borderWidth: 1,
+      borderColor: '#F43F5E'
     },
-    sectionWrapper: {
-      marginBottom: 24,
+    timerText: { color: '#F43F5E', fontSize: 12, fontWeight: '700', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
+    viewAllText: { fontSize: 14, fontWeight: '700' },
+    listPadding: { paddingHorizontal: 16 },
+    categoryGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      paddingHorizontal: 10,
+      justifyContent: 'space-between',
     },
-    sectionTitle: {
-      color: colors.text,
-      fontSize: 22,
-      fontWeight: 'bold',
-      marginLeft: 16,
+    categoryGridItem: {
+      width: '48%',
       marginBottom: 12,
     },
-    listPadding: {
-      paddingHorizontal: 12,
-    },
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.7)',
-      justifyContent: 'center',
-      padding: 20,
-    },
-    modalContent: {
-      backgroundColor: colors.surface,
-      borderRadius: 28,
-      padding: 25,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    modalTitle: { color: colors.text, fontSize: 22, fontWeight: 'bold' },
-    modalSub: { color: colors.textMuted, fontSize: 14, marginBottom: 15 },
-    errorContainer: {
-      backgroundColor: 'rgba(248, 113, 113, 0.1)',
-      padding: 10,
-      borderRadius: 8,
-      marginBottom: 10,
-    },
-    localErrorText: {
-      color: '#F87171',
-      fontSize: 13,
-      fontWeight: '600',
-      textAlign: 'center',
-    },
-    input: {
-      backgroundColor: colors.background,
-      borderRadius: 14,
-      padding: 16,
-      color: colors.text,
-      marginBottom: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    reqContainer: { marginBottom: 15, paddingHorizontal: 5 },
-    reqRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-    bullet: { width: 6, height: 6, borderRadius: 3, marginRight: 8 },
-    reqText: { fontSize: 12 },
-    btn: {
-      backgroundColor: colors.primary,
-      borderRadius: 14,
-      padding: 18,
-      alignItems: 'center',
-      marginTop: 10,
-    },
-    btnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
   });
 
 export default CustomerHomeScreen;

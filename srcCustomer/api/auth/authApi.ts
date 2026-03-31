@@ -46,7 +46,9 @@ export const registerKYCDocuments = async (formData: FormData) => {
 };
 
 export const registerBankDetails = async (data: BankInfoPayload) => {
+  console.log('resg bank pay;oad is', data)
   const response = await api.put('customers/register-bank-details', data);
+  console.log('bank response is', response)
   return response.data.results.data;
 };
 
@@ -77,5 +79,22 @@ export const deleteAccountApi = async () => {
 
 export const setNewPassword = async (data: any) => {
   const response = await api.post('set-new-password', data);
+  return response.data;
+};
+
+
+export const getRegisterChoiceList = async () => {
+  const response = await api.get('customers/register-choice-list');
+  return response.data;
+};
+
+ 
+export const fetchSavedRegistrationData = async (user_id: string | number) => {
+  const response = await api.get(`customers/register-fetch-saved-data?user_id=${user_id}`);
+  return response.data;
+};
+
+export const fetchRegistrationStatus = async (user_id: string) => {
+  const response = await api.get(`customers/customer-status-summary?user_id=${user_id}`);
   return response.data;
 };

@@ -1,24 +1,22 @@
 import React from 'react';
 import {
-  SafeAreaView,
-  View,
-  Text,
-  TouchableOpacity,
-  ActivityIndicator,
-  ScrollView,
+  SafeAreaView, View, Text, TouchableOpacity,
+  ActivityIndicator, ScrollView,
 } from 'react-native';
-import { registrationStyles } from '../styles';
+import { makeStyles } from '../styles';
 import StepIndicator from './StepIndicator';
 import Icon from '../../../../Icon';
 import { SVG_ICONS } from '../../../assets/icons/svg';
+import { useTheme } from '../../../../ThemeContext';
 
 interface RegistrationLayoutProps {
   children: React.ReactNode;
   currentStep: number;
   onContinue: () => void;
   onCancel?: () => void;
-  loading?: boolean;
+  isLoading?: boolean;
   continueText?: string;
+  rejectedSteps?: number[];
 }
 
 const RegistrationLayout: React.FC<RegistrationLayoutProps> = ({
@@ -26,14 +24,15 @@ const RegistrationLayout: React.FC<RegistrationLayoutProps> = ({
   currentStep,
   onContinue,
   onCancel,
-  loading = false,
+  isLoading = false,
   continueText = 'Continue',
+  rejectedSteps = [],
 }) => {
-  const styles = registrationStyles;
+  const { colors, isDark } = useTheme();
+  const styles = makeStyles(colors, isDark);
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* --- COMMON HEADER --- */}
       <View style={styles.header}>
         <View style={styles.headerIcon}>
           <Icon xml={SVG_ICONS.loginBox} />
@@ -41,28 +40,27 @@ const RegistrationLayout: React.FC<RegistrationLayoutProps> = ({
         <Text style={styles.headerTitle}>Customer Registration</Text>
       </View>
 
-      {/* --- COMMON STEP INDICATOR --- */}
-      <StepIndicator currentStep={currentStep} />
+      <StepIndicator currentStep={currentStep} rejectedSteps={rejectedSteps} />
 
-      {/* --- DYNAMIC FORM CONTENT --- */}
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {children}
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* --- COMMON FOOTER --- */}
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
-          <Text style={styles.cancelText}>
-            {currentStep !== 1 ? 'Back' : 'Cancel'}
-          </Text>
+        <TouchableOpacity style={styles.cancelButton} onPress={onCancel} disabled={isLoading}>
+          <Text style={styles.cancelText}>{currentStep !== 1 ? 'Back' : 'Cancel'}</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.continueButton}
+          style={[styles.continueButton, isLoading && { opacity: 0.7 }]}
           onPress={onContinue}
-          disabled={loading}
+          disabled={isLoading}
         >
-          {loading ? (
+          {isLoading ? (
             <ActivityIndicator color="#FFF" />
           ) : (
             <Text style={styles.continueText}>{continueText}</Text>

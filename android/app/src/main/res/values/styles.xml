@@ -1,9 +1,9 @@
 <resources>
+    <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        </style>
 
-    <!-- Base application theme. -->
-  <style name="BootTheme" parent="Theme.BootSplash">
-    <item name="bootSplashBackground">@color/bootsplash_background</item>
-    <item name="bootSplashLogo">@drawable/bootsplash_logo</item>
-</style>
-
+    <style name="BootTheme" parent="Theme.BootSplash">
+        <item name="bootSplashBackground">@color/bootsplash_background</item>
+        <item name="bootSplashLogo">@drawable/bootsplash_logo</item>
+    </style>
 </resources>

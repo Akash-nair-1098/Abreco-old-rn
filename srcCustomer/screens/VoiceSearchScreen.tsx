@@ -12,6 +12,7 @@ import ProductCardComponent from '../components/ProductCardComponent';
 import { globalSearchProducts } from '../api/products/productsApi';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next'; // Added
 import Icon from '../../Icon';
 import { SVG_ICONS } from '../assets/icons/svg';
 import { useTheme } from '../../ThemeContext';
@@ -20,7 +21,8 @@ export const VoiceSearchScreen = ({ route }: any) => {
   const { results: initialResults, term, isGlobalSearch } = route.params;
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const { colors, isDark } = useTheme(); // Theme Hook
+  const { t } = useTranslation(); // Translation Hook
+  const { colors, isDark } = useTheme();
   const styles = makeStyles(colors, isDark);
 
   const [loading, setLoading] = useState(false);
@@ -68,7 +70,7 @@ export const VoiceSearchScreen = ({ route }: any) => {
 
         <View style={styles.headerTitleContainer}>
           <Text style={styles.title} numberOfLines={1}>
-            Results for "{term}"
+            {t('results_for', { term: term })}
           </Text>
           {loading ? (
             <ActivityIndicator
@@ -77,7 +79,9 @@ export const VoiceSearchScreen = ({ route }: any) => {
               style={{ alignSelf: 'flex-start', marginTop: 2 }}
             />
           ) : (
-            <Text style={styles.count}>{data.length} items found</Text>
+            <Text style={styles.count}>
+               {t('items_found', { count: data.length })}
+            </Text>
           )}
         </View>
       </View>
@@ -85,7 +89,7 @@ export const VoiceSearchScreen = ({ route }: any) => {
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.empty, { marginTop: 10 }]}>Searching...</Text>
+          <Text style={[styles.empty, { marginTop: 10 }]}>{t('searching')}</Text>
         </View>
       ) : (
         <FlatList
@@ -96,7 +100,7 @@ export const VoiceSearchScreen = ({ route }: any) => {
           contentContainerStyle={styles.list}
           columnWrapperStyle={styles.column}
           ListEmptyComponent={
-            <Text style={styles.empty}>No products found.</Text>
+            <Text style={styles.empty}>{t('no_products_found')}</Text>
           }
         />
       )}
@@ -105,13 +109,9 @@ export const VoiceSearchScreen = ({ route }: any) => {
 };
 
 // --- Themed Styles ---
-
 const makeStyles = (colors: any, isDark: boolean) =>
   StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
+    container: { flex: 1, backgroundColor: colors.background },
     header: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -128,35 +128,11 @@ const makeStyles = (colors: any, isDark: boolean) =>
       borderWidth: isDark ? 1 : 0,
       borderColor: colors.border,
     },
-    headerTitleContainer: {
-      flex: 1,
-    },
-    title: {
-      color: colors.text,
-      fontSize: 18,
-      fontWeight: 'bold',
-    },
-    count: {
-      color: colors.textMuted,
-      fontSize: 13,
-      marginTop: 2,
-    },
-    center: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    list: {
-      paddingBottom: 20,
-      paddingHorizontal: 12,
-      paddingTop: 10,
-    },
-    column: {
-      justifyContent: 'space-between',
-    },
-    empty: {
-      color: colors.textMuted,
-      textAlign: 'center',
-      marginTop: 50,
-    },
+    headerTitleContainer: { flex: 1 },
+    title: { color: colors.text, fontSize: 18, fontWeight: 'bold' },
+    count: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    list: { paddingBottom: 20, paddingHorizontal: 12, paddingTop: 10 },
+    column: { justifyContent: 'space-between' },
+    empty: { color: colors.textMuted, textAlign: 'center', marginTop: 50 },
   });

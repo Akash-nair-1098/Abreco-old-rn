@@ -21,6 +21,7 @@ interface CartState {
   tax: string;
   promoCode: string;
   loading: boolean;
+  billTotal: string;
 
   addItem: (product: any, qty: any) => Promise<void>;
   updateQty: (itemUuid: string, newQty: number) => Promise<void>;
@@ -40,6 +41,7 @@ export const useCartStore = create<CartState>()(
       tax: '0',
       promoCode: '',
       loading: false,
+      billTotal:'0',
 
       // POST: Add new item or increment if exists
       // Inside useCartStore.ts
@@ -48,7 +50,8 @@ export const useCartStore = create<CartState>()(
         
         set({ loading: true });
         const { items } = get();
-        const existingItem = items.find(i => i.product_id === product.id);
+        let id = product.id ?? product.inshop_product_id
+        const existingItem = items.find(i => i.product_id === id);
 
         if (existingItem) {
           // If it exists, we add the new requested quantity to the current quantity
@@ -58,18 +61,19 @@ export const useCartStore = create<CartState>()(
 
         try {
           const response = await addToCartApi({
-            in_shop_product_id: product.id,
+            in_shop_product_id: id,
             quantity: requestedQuantity, // Pass the dynamic quantity here
           });
-          console.log('resp is', response);
+          // console.log('resp is', response);
 
           // Reset state with fresh data from server
           set({
             items: response.items,
-            itemTotal: response.total,
+            itemTotal: response.subtotal,
             shipping: response.shipping,
             promoCode: response.promo_code,
             tax: response.tax,
+            billTotal: response.total
           });
         } catch (error) {
           console.error('Add to cart failed', error);
@@ -94,10 +98,11 @@ export const useCartStore = create<CartState>()(
           const response = await updateCartItemApi(itemUuid, newQty);
           set({
             items: response.items,
-            itemTotal: response.total,
+            itemTotal: response.subtotal,
             shipping: response.shipping,
             promoCode: response.promo_code,
             tax: response.tax,
+            billTotal: response.total
           });
           set({ loading: false });
         } catch (error) {
@@ -116,10 +121,11 @@ export const useCartStore = create<CartState>()(
           const response = await deleteCartItemApi(itemUuid);
           set({
             items: response.items,
-            itemTotal: response.total,
+            itemTotal: response.subtotal,
             shipping: response.shipping,
             promoCode: response.promo_code,
             tax: response.tax,
+            billTotal: response.total
           });
           set({ loading: false });
         } catch (error) {
@@ -135,10 +141,11 @@ export const useCartStore = create<CartState>()(
           const response = await getCartApi();
           set({
             items: response.items,
-            itemTotal: response.total,
+            itemTotal: response.subtotal,
             shipping: response.shipping,
             promoCode: response.promo_code,
             tax: response.tax,
+            billTotal: response.total
           });
         } catch (error) {
           set({ loading: false });
@@ -160,11 +167,12 @@ export const useCartStore = create<CartState>()(
           // Update the store with the new totals and items returned by the API
           set({
             items: response.items,
-            itemTotal: response.total,
+            itemTotal: response.subtotal,
             shipping: response.shipping,
             tax: response.tax,
             promoCode: response.promo_code,
             loading: false,
+            billTotal: response.total
           });
         } catch (error) {
           set({ loading: false });

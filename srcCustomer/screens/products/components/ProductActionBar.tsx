@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ interface PropTypes {
   handleBuyNow: (quantity: number) => void;
   loading: boolean;
   isOutOfStock?: boolean;
+  onQuantityChange?: (quantity: number) => void; // New prop for parent communication
 }
 
 const ProductActionBar = ({
@@ -25,11 +26,19 @@ const ProductActionBar = ({
   handleBuyNow,
   loading,
   isOutOfStock = false,
+  onQuantityChange,
 }: PropTypes) => {
   const [quantity, setQuantity] = useState(1);
   const { showToast } = useToast();
   const { colors, isDark } = useTheme();
   const styles = makeStyles(colors, isDark, isOutOfStock);
+
+  // Sync quantity with parent whenever it changes
+  useEffect(() => {
+    if (onQuantityChange) {
+      onQuantityChange(quantity);
+    }
+  }, [quantity]);
 
   const handleDecrement = () => {
     if (quantity > 1) setQuantity(prev => prev - 1);
@@ -134,10 +143,13 @@ const makeStyles = (colors: any, isDark: boolean, isOutOfStock: boolean) =>
       alignItems: 'center',
       backgroundColor: colors.background,
       paddingHorizontal: 16,
-      paddingVertical: Platform.OS === 'ios' ? 30 : 20, // Adjust for iOS home indicator
+      paddingVertical: Platform.OS === 'ios' ? 30 : 20,
       gap: 12,
       borderTopWidth: 1,
       borderTopColor: colors.border,
+      position: 'absolute', // Ensures it stays at the bottom
+      bottom: 0,
+      width: '100%',
     },
     quantitySelector: {
       flexDirection: 'row',

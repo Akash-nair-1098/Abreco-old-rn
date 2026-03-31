@@ -300,7 +300,7 @@ const makeStyles = (colors: any) =>
     header: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      padding: 16,
+      paddingHorizontal: 16,paddingVertical:10,
       alignItems: 'center',
       backgroundColor: colors.background,
     },

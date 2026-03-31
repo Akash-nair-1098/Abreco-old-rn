@@ -8,6 +8,7 @@ import {
   Dimensions,
   StyleProp,
   ViewStyle,
+  TextStyle,
   ScrollView,
   StyleSheet,
   Platform,
@@ -31,6 +32,7 @@ type Props = {
   rightIcon?: string;
   maxListHeight?: number;
   dropDownStyles?: StyleProp<ViewStyle>;
+  optionStyles?: StyleProp<TextStyle>; // Added to support the custom text colors passed from parent
   disabled?: boolean;
 };
 
@@ -43,6 +45,7 @@ const Dropdown = ({
   rightIcon,
   maxListHeight = 200,
   dropDownStyles,
+  optionStyles,
   disabled = false,
 }: Props) => {
   const { colors, isDark } = useTheme();
@@ -88,6 +91,7 @@ const Dropdown = ({
           style={[
             styles.valueText,
             { color: value ? colors.text : colors.textMuted },
+            optionStyles, // Applied to the main selected text
           ]}
           numberOfLines={1}
         >
@@ -148,6 +152,7 @@ const Dropdown = ({
                       style={[
                         styles.optionText,
                         { color: isSelected ? colors.primary : colors.text },
+                        optionStyles, // Applied to list items
                       ]}
                     >
                       {item.name}

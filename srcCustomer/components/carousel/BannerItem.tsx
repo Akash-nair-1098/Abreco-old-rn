@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../../ThemeContext';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 export interface BannerData {
   title: string;
@@ -16,12 +18,26 @@ export interface BannerData {
   offerTag: string;
   image: string; // URL string from API
   buttonColor?: string;
+  id:string;
 }
 
 const BannerItem = ({ item }: { item: BannerData }) => {
   const { colors, isDark } = useTheme();
   const { t } = useTranslation();
   const styles = makeStyles(colors, isDark);
+
+  // 2. Initialize Navigation
+  const navigation = useNavigation<NativeStackNavigationProp<any>>();
+
+  const handlePress = () => {
+    // Navigating to the Tab first ("Products"), then the Stack Screen ("ProductListing")
+    navigation.navigate('Products', {
+      screen: 'ProductListing',
+      params: { 
+        offerId: item.id,
+      },
+    });
+  };
 
   return (
     <ImageBackground
@@ -48,6 +64,7 @@ const BannerItem = ({ item }: { item: BannerData }) => {
 
         {/* Action Button */}
         <TouchableOpacity
+        onPress={handlePress}
           style={[
             styles.button,
             { backgroundColor: item.buttonColor || colors.primary },

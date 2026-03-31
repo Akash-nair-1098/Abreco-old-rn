@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   ScrollView,
   StatusBar,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../../ThemeContext';
 import Icon from '../../../Icon';
 import { SVG_ICONS } from '../../assets/icons/svg';
@@ -21,11 +22,10 @@ import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import * as NavigationService from '../../navigation/NavigationService';
 import { useSearchStore } from '../../store/useSearchStore';
 
-const CATEGORIES = ['All', 'Delivered', 'Ordered', 'Cancelled', 'Pending'];
-
 const OrderHistoryScreen = ({ navigation }: any) => {
   const { colors, isDark } = useTheme();
   const styles = makeStyles(colors, isDark);
+  const { t, i18n } = useTranslation();
   const { showToast } = useToast();
 
   const [activeTab, setActiveTab] = useState('All');
@@ -36,11 +36,18 @@ const OrderHistoryScreen = ({ navigation }: any) => {
   const searchText = useSearchStore(state => state.searchText);
   const isFocused = useIsFocused();
 
-  // Helper using Theme colors
+  const CATEGORIES = useMemo(() => [
+    { key: 'All', label: t('all') },
+    { key: 'Delivered', label: t('delivered') },
+    { key: 'Ordered', label: t('ordered') },
+    { key: 'Cancelled', label: t('cancelled') },
+    { key: 'Pending', label: t('pending') },
+  ], [t]);
+
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'pending':
-        return '#F59E0B'; // Amber
+        return '#F59E0B';
       case 'confirmed':
       case 'delivered':
         return colors.success;
@@ -53,7 +60,7 @@ const OrderHistoryScreen = ({ navigation }: any) => {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
+    return date.toLocaleDateString(i18n.language, {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
@@ -66,7 +73,7 @@ const OrderHistoryScreen = ({ navigation }: any) => {
       const data = await fetchOrdersList(filter);
       setOrders(data);
     } catch (error) {
-      showToast('Failed to load orders');
+      showToast(t('failed_load_orders'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -104,9 +111,7 @@ const OrderHistoryScreen = ({ navigation }: any) => {
         }
         style={styles.card}
       >
-        <View
-          style={[styles.statusSideBar, { backgroundColor: statusColor }]}
-        />
+        <View style={[styles.statusSideBar, { backgroundColor: statusColor }]} />
 
         <View style={styles.cardContent}>
           <View style={styles.cardHeader}>
@@ -116,7 +121,7 @@ const OrderHistoryScreen = ({ navigation }: any) => {
               </View>
               <View>
                 <Text style={styles.orderIdText}>
-                  Order #{item.order_number.split('-').pop()}
+                  {t('order_id_prefix')} #{item.order_number.split('-').pop()}
                 </Text>
                 <Text style={styles.dateText}>
                   {formatDate(item.created_at)}
@@ -124,12 +129,7 @@ const OrderHistoryScreen = ({ navigation }: any) => {
               </View>
             </View>
 
-            <View
-              style={[
-                styles.statusBadge,
-                { backgroundColor: `${statusColor}20` },
-              ]}
-            >
+            <View style={[styles.statusBadge, { backgroundColor: `${statusColor}20` }]}>
               <Text style={[styles.statusText, { color: statusColor }]}>
                 {item.status_display.toUpperCase()}
               </Text>
@@ -151,10 +151,10 @@ const OrderHistoryScreen = ({ navigation }: any) => {
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={styles.itemCountText}>
-                {item.items_count} {item.items_count === 1 ? 'Item' : 'Items'}
+                {item.items_count} {item.items_count === 1 ? t('item_singular') : t('items_plural')}
               </Text>
               <Text style={styles.priceText}>
-                AED {parseFloat(item.total_amount).toFixed(2)}
+                {t('aed')} {parseFloat(item.total_amount).toFixed(2)}
               </Text>
             </View>
           </View>
@@ -174,20 +174,20 @@ const OrderHistoryScreen = ({ navigation }: any) => {
         >
           {CATEGORIES.map(tab => (
             <TouchableOpacity
-              key={tab}
-              onPress={() => setActiveTab(tab)}
+              key={tab.key}
+              onPress={() => setActiveTab(tab.key)}
               style={[
                 styles.tabButton,
-                activeTab === tab && styles.activeTabButton,
+                activeTab === tab.key && styles.activeTabButton,
               ]}
             >
               <Text
                 style={[
                   styles.tabButtonText,
-                  activeTab === tab && styles.activeTabButtonText,
+                  activeTab === tab.key && styles.activeTabButtonText,
                 ]}
               >
-                {tab}
+                {tab.label}
               </Text>
             </TouchableOpacity>
           ))}
@@ -214,7 +214,7 @@ const OrderHistoryScreen = ({ navigation }: any) => {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No orders found</Text>
+              <Text style={styles.emptyText}>{t('no_orders')}</Text>
             </View>
           }
         />
@@ -237,7 +237,8 @@ const makeStyles = (colors: any, isDark: boolean) =>
     },
     topTabContainer: {
       flexDirection: 'row',
-      padding: 16,
+      paddingHorizontal: 16,
+      paddingVertical: 7,
       gap: 10,
     },
     tabButton: {
@@ -273,7 +274,6 @@ const makeStyles = (colors: any, isDark: boolean) =>
       overflow: 'hidden',
       borderWidth: 1,
       borderColor: colors.border,
-      // Shadow for light mode
       elevation: isDark ? 0 : 2,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 2 },

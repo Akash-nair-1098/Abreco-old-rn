@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuthStore } from '../store/useAuthStore';
-import LoginScreen from '../screens/loginScreen';
+import LoginScreen from '../screens/loginScreen/LoginScreen';
+import RegistrationStatusScreen from '../screens/loginScreen/RegistrationStatusScreen';
 import { CustomerTabNavigator } from './CustomerTabNavigator';
 import CreateAccountScreen from '../screens/CreateAccount/CreateAccountScreen';
 import LoadingScreen from '../components/LoadingScreen';
-import MultiStepRegistration from '../screens/CreateAccount/RegistrationFlowScreen';
 import { BusinessDetailsScreen } from '../screens/CreateAccount/BusinessDetailsScreen';
 import { AddContactsScreen } from '../screens/CreateAccount/AddContactsScreen';
 import { KYCUploadsScreen } from '../screens/CreateAccount/KycUploadScreen';
@@ -24,6 +24,7 @@ export type RootStackParamList = {
   KycUploads: undefined;
   FinancialInfo: undefined;
   ReviewScreen: undefined;
+  RegistrationStatus:undefined;
   LegalDocScreen: { docType: any };
   SearchStack:
     | {
@@ -48,20 +49,22 @@ const MainNavigator = () => {
   }, [isAuthenticated]);
 
 
-// if (isLoggedIn == null) {
-//   return <LoadingScreen />;
-// }
+if (isLoggedIn == null) {
+  return <LoadingScreen />
+}
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {isAuthenticated ? (
         <>
           <Stack.Screen name="HomeScreen" component={CustomerTabNavigator} />
-          <Stack.Screen name="SearchStack" component={SearchStack} />
+          {/* <Stack.Screen name="SearchStack" component={SearchStack} /> */}
         </>
       ) : (
         <>
           <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="RegistrationStatus" component={RegistrationStatusScreen} />
+          
           <Stack.Screen name="CreateAccount" component={CreateAccountScreen} />
           <Stack.Screen
             name="BusinessDetails"

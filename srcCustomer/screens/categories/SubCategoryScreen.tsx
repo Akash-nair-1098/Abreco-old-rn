@@ -18,21 +18,21 @@ const SubCategoryScreen = ({ navigation, route }: any) => {
   const styles = makeStyles(colors);
 
   const [subCategories, setSubCategories] = useState<any>([]);
-  const { params } = route.params || {};
 
   // Title from previous navigation
-  const categoryTitle = params?.title || 'Collections';
+  const categoryTitle = route.params?.title || 'Collections';
+  console.log('params is', route.params)
 
   useEffect(() => {
-    if (params?.subCategories) {
-      setSubCategories(params.subCategories);
+    if (route.params?.subCategories) {
+      setSubCategories(route.params.subCategories);
     }
-  }, [params]);
+  }, [route.params]);
 
   const handlePress = (item: any) => {
     navigation.navigate('CategoryProductListing', {
       params: {
-        mainCategoryId: params.categoryId,
+        mainCategoryId: route.params.categoryId,
         categoryId: item.id,
         title: item.name,
       },

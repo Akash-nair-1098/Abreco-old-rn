@@ -26,16 +26,18 @@ export interface BusinessAddress {
 
 export interface BusinessInfoPayload {
   secret_token: string;
+  user_id: string;
   phone_number: string;
-  company_name: string;
+  first_name: string;
   business_type: string;
   about_business: string;
   trade_license_number: string;
+  trade_license_expiry?: string; 
   vat_trn: string;
+  vat_expiry?: string;
   office_phone_number: string;
   addresses: BusinessAddress[];
 }
-
 export interface ContactItem {
   full_name: string;
   designation: string;
@@ -46,12 +48,14 @@ export interface ContactItem {
 
 export interface ContactInfoPayload {
   secret_token: string;
+  user_id:  string;
   phone_number: string;
   contacts: ContactItem[];
 }
 
 export interface BankInfoPayload {
   secret_token: string;
+  user_id:  string;
   phone_number: string;
   bank_name: string;
   iban_number: string;

@@ -5,6 +5,8 @@ interface Address {
   id: string;
   location_name: string;
   address: string;
+  latitude: string;
+  longitude: string;
 }
 
 interface AddressState {
@@ -12,11 +14,17 @@ interface AddressState {
   selectedAddress: Address | null; // Track selection
   loading: boolean;
   fetchAddresses: () => Promise<void>;
-  addAddress: (name: string, fullAddress: string) => Promise<Address>;
+  // Updated signature to include coordinates
+  addAddress: (
+    name: string, 
+    fullAddress: string, 
+    latitude: string, 
+    longitude: string
+  ) => Promise<Address>;
   setSelectedAddress: (address: Address) => void; // Action to set selection
 }
 
-export const useAddressStore = create<AddressState>(set => ({
+export const useAddressStore = create<AddressState>((set, get) => ({
   addresses: [],
   selectedAddress: null, // Initial state
   loading: false,
@@ -26,22 +34,29 @@ export const useAddressStore = create<AddressState>(set => ({
     try {
       const data = await getAddressesApi();
       set({ addresses: data });
-      // Optional: Auto-select the first address if none is selected
+      
+      // Auto-select the first address if none is selected
       if (data.length > 0 && !get().selectedAddress) {
         set({ selectedAddress: data[0] });
       }
+    } catch (error) {
+      console.error('Failed to fetch addresses:', error);
     } finally {
       set({ loading: false });
     }
   },
 
-  addAddress: async (name, fullAddress) => {
+  addAddress: async (name, fullAddress, latitude, longitude) => {
     set({ loading: true });
     try {
+      // Sending latitude and longitude keys to the backend API
       const newAddr = await createAddressApi({
         location_name: name,
         address: fullAddress,
+        latitude: latitude,
+        longitude: longitude,
       });
+
       set(state => ({
         addresses: [newAddr, ...state.addresses],
         selectedAddress: newAddr, // Auto-select newly created address

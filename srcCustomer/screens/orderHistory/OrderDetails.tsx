@@ -10,24 +10,22 @@ import {
   ActivityIndicator,
   StatusBar,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../../ThemeContext';
-import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { addItem, clearCart } from '../../store/features/cart/cartSlice';
 import Icon from '../../../Icon';
 import { SVG_ICONS } from '../../assets/icons/svg';
 import { fetchOrderDetail } from '../../api/products/productsApi';
 import * as NavigationService from '../../navigation/NavigationService';
+import i18n from '../../utilities/i18n';
 
 const OrderDetails = ({ navigation, route }: any) => {
   const { colors, isDark } = useTheme();
   const styles = makeStyles(colors, isDark);
+  const { t } = useTranslation();
 
   const orderId = route.params?.params?.id;
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-
-  const dispatch = useAppDispatch();
-  const { items: cartItems } = useAppSelector(state => state.cart);
 
   useEffect(() => {
     loadOrderDetails();
@@ -39,24 +37,26 @@ const OrderDetails = ({ navigation, route }: any) => {
       const data = await fetchOrderDetail(orderId);
       setOrder(data);
     } catch (error) {
-      Alert.alert('Error', 'Failed to load order details');
+      Alert.alert(t('error'), t('failed_load_details'));
       NavigationService.goBack();
     } finally {
       setLoading(false);
     }
   };
-const getStatusColor = (status: string) => {
-  switch (status?.toLowerCase()) {
-    case 'confirmed':
-      return colors.success; // Found in your theme
-    case 'pending':
-      return '#F59E0B'; // Amber/Warning (you can change this to a theme color if added)
-    case 'cancelled':
-      return colors.danger; // Changed from .error to .danger based on your error message
-    default:
-      return colors.primary;
-  }
-};
+
+  const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'confirmed':
+      case 'delivered':
+        return colors.success;
+      case 'pending':
+        return '#F59E0B'; 
+      case 'cancelled':
+        return colors.danger;
+      default:
+        return colors.primary;
+    }
+  };
 
   if (loading || !order) {
     return (
@@ -78,7 +78,7 @@ const getStatusColor = (status: string) => {
       >
         <Icon
           xml={
-            order.status === 'confirmed'
+            order.status === 'confirmed' || order.status === 'delivered'
               ? SVG_ICONS.successIcon
               : order.status === 'cancelled'
               ? SVG_ICONS.closeIcon
@@ -91,9 +91,9 @@ const getStatusColor = (status: string) => {
       <Text style={styles.statusTitle}>
         {order?.status_display?.toUpperCase()}
       </Text>
-      <Text style={styles.orderIdSub}>Order #{order.order_number}</Text>
+      <Text style={styles.orderIdSub}>{t('order_id_prefix')} #{order.order_number}</Text>
       <Text style={styles.dateSub}>
-        {new Date(order.created_at).toLocaleString([], {
+        {new Date(order.created_at).toLocaleString(i18n.language, {
           dateStyle: 'medium',
           timeStyle: 'short',
         })}
@@ -104,8 +104,8 @@ const getStatusColor = (status: string) => {
   const renderFooter = () => (
     <View style={styles.footerContainer}>
       <View style={styles.paymentCard}>
-        <View>
-          <Text style={styles.paymentLabel}>Payment Method</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.paymentLabel}>{t('payment_method')}</Text>
           <Text style={styles.paymentValue}>
             {order.payment_method_display}
           </Text>
@@ -114,9 +114,9 @@ const getStatusColor = (status: string) => {
           </Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={styles.paymentLabel}>Total Amount</Text>
+          <Text style={styles.paymentLabel}>{t('total_amount')}</Text>
           <Text style={[styles.totalPrice, { color: statusColor }]}>
-            AED {parseFloat(order.total_amount).toFixed(2)}
+            {t('aed')} {parseFloat(order.total_amount).toFixed(2)}
           </Text>
         </View>
       </View>
@@ -124,7 +124,7 @@ const getStatusColor = (status: string) => {
       <View style={styles.buttonRow}>
         <TouchableOpacity style={styles.helpButton}>
           <Icon xml={SVG_ICONS.infoIcon} size={20} color={colors.text} />
-          <Text style={styles.buttonTextSecondary}>Help</Text>
+          <Text style={styles.buttonTextSecondary}>{t('help')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -136,7 +136,7 @@ const getStatusColor = (status: string) => {
           style={styles.reorderButton}
         >
           <Icon xml={SVG_ICONS.locationPin} size={20} color="white" />
-          <Text style={styles.buttonTextPrimary}>Track Order</Text>
+          <Text style={styles.buttonTextPrimary}>{t('track_order')}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -150,7 +150,7 @@ const getStatusColor = (status: string) => {
         onPress={() => navigation.goBack()}
       >
         <Icon xml={SVG_ICONS.backIcon} size={24} color={colors.text} />
-        <Text style={styles.backText}>Order Details</Text>
+        <Text style={styles.backText}>{t('order_details')}</Text>
       </TouchableOpacity>
 
       <FlatList
@@ -160,7 +160,7 @@ const getStatusColor = (status: string) => {
           <>
             {renderHeader()}
             <Text style={styles.sectionHeader}>
-              ITEMS ORDERED ({order.items.length})
+              {t('items_ordered')} ({order.items.length})
             </Text>
           </>
         }
@@ -176,7 +176,7 @@ const getStatusColor = (status: string) => {
               <Text style={styles.skuText}>{item.variant_sku}</Text>
             </View>
             <Text style={styles.itemPrice}>
-              AED {parseFloat(item.total_price).toFixed(2)}
+              {t('aed')} {parseFloat(item.total_price).toFixed(2)}
             </Text>
           </View>
         )}
@@ -187,6 +187,7 @@ const getStatusColor = (status: string) => {
     </SafeAreaView>
   );
 };
+
 
 const makeStyles = (colors: any, isDark: boolean) =>
   StyleSheet.create({

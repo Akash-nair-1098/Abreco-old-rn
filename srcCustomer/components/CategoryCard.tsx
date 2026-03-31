@@ -25,6 +25,7 @@ interface CategoryCardProps {
   badgeText?: string;
   titleColor?: string;
   onChange?: () => void;
+  useFullBackground?: boolean;
 }
 
 const CategoryCard = ({
@@ -36,26 +37,43 @@ const CategoryCard = ({
   badgeText = 'TOP',
   titleColor,
   onChange,
+  useFullBackground = false,
 }: CategoryCardProps) => {
   const { t } = useTranslation(); // Defined t here
   const { colors, isDark } = useTheme();
-  const styles = makeStyles(colors, isDark);
+  const styles = makeStyles(colors, isDark, useFullBackground);
+
+  const contentColor = useFullBackground ? 'white' : (titleColor || colors.text);
+  const subtitleColor = useFullBackground ? 'rgba(255,255,255,0.8)' : colors.textMuted;
+
+  const CardWrapper = useFullBackground ? LinearGradient : View;
 
   return (
     <TouchableOpacity
-      style={styles.card}
-      activeOpacity={0.8}
-      onPress={onChange}
+    activeOpacity={0.8}
+    onPress={onChange}
+  >
+    <CardWrapper
+      colors={gradientColors}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[styles.card, !useFullBackground && { backgroundColor: colors.surface }]}
     >
       <View style={styles.header}>
-        <LinearGradient
-          colors={gradientColors}
-          style={styles.iconContainer}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
+        {/* If full background is on, the icon container becomes transparent or slightly shaded */}
+        <View style={[
+          styles.iconContainer, 
+          !useFullBackground && { backgroundColor: gradientColors[0] } // Fallback if no LinearGradient on icon
+        ]}>
+           {!useFullBackground ? (
+              <LinearGradient
+                colors={gradientColors}
+                style={StyleSheet.absoluteFill}
+                borderRadius={20}
+              />
+           ) : null}
           <Icon xml={iconName as any} size={28} color="white" />
-        </LinearGradient>
+        </View>
 
         {showBadge && (
           <View style={styles.badge}>
@@ -66,26 +84,27 @@ const CategoryCard = ({
 
       <View style={styles.footer}>
         <Text
-          style={[styles.title, { color: titleColor || colors.text }]}
-          numberOfLines={1}
+          style={[styles.title, { color: contentColor }]}
+          numberOfLines={2}
         >
           {title}
         </Text>
 
         {count !== undefined && (
           <View style={styles.subtitleRow}>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.subtitle, { color: subtitleColor }]}>
               {count} {t('collections', { defaultValue: 'collections' })}
             </Text>
             <Icon
               xml={SVG_ICONS.rightArrow}
               size={12}
-              color={colors.textMuted}
+              color={subtitleColor}
             />
           </View>
         )}
       </View>
-    </TouchableOpacity>
+    </CardWrapper>
+  </TouchableOpacity>
   );
 };
 

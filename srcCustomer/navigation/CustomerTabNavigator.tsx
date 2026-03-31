@@ -18,6 +18,7 @@ import Icon from '../../Icon';
 import { SVG_ICONS } from '../assets/icons/svg';
 import { VoiceSearchFloatingUI } from '../components/VoiceSearchFloatingButton';
 import { useTheme } from '../../ThemeContext';
+import SearchStack from './SearchStack';
 
 const Tab = createBottomTabNavigator();
 
@@ -83,6 +84,7 @@ export function CustomerTabNavigator() {
           { name: 'OrderTrackingScreen', component: LiveOrderScreen },
           { name: 'InvoiceScreen', component: InvoicesScreen },
           { name: 'WishlistScreen', component: WishlistScreen },
+          { name: 'SearchStack', component: SearchStack },
         ].map(screen => (
           <Tab.Screen
             key={screen.name}

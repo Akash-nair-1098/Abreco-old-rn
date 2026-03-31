@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -20,9 +20,11 @@ import {
   acknowledgeOrder,
   getOrderTrackingDetails,
 } from '../../api/products/productsApi';
+import { useTranslation } from 'react-i18next';
 
 const LiveOrderScreen = ({ navigation, route }: any) => {
   const { orderId } = route.params || {};
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const styles = makeStyles(colors, isDark);
@@ -30,7 +32,7 @@ const LiveOrderScreen = ({ navigation, route }: any) => {
   const [loading, setLoading] = useState(true);
   const [orderData, setOrderData] = useState<any>(null);
   const [isAcknowledging, setIsAcknowledging] = useState(false);
-  const [isConfirmed, setIsConfirmed] = useState(false); // New state to hide button after success
+  const [isConfirmed, setIsConfirmed] = useState(false);
 
   const fetchTracking = useCallback(async () => {
     if (!orderId) return;
@@ -58,42 +60,48 @@ const LiveOrderScreen = ({ navigation, route }: any) => {
     if (phoneNumber) {
       Linking.openURL(`tel:${phoneNumber}`);
     } else {
-      Alert.alert('Error', 'Phone number not available');
+      Alert.alert(t('error'), t('phone_not_available'));
     }
   };
 
   const handleAcknowledge = async () => {
     setIsAcknowledging(true);
     try {
-      const res = await acknowledgeOrder(orderId);
-      console.log('respons eis', res);
-        setIsConfirmed(true); 
-        Alert.alert('Success', 'Order delivery confirmed successfully.');
-
+      await acknowledgeOrder(orderId);
+      setIsConfirmed(true); 
+      Alert.alert(t('success'), t('delivery_confirmed_success'));
     } catch (error) {
-      Alert.alert('Error', 'Failed to acknowledge order. Please try again.');
+      Alert.alert(t('error'), t('failed_acknowledge'));
     } finally {
       setIsAcknowledging(false);
     }
   };
 
-  if (loading) return <LoadingScreen message="Updating status..." />;
+  // Memoized translated steps
+  const ORDER_STEPS = useMemo(() => [
+    { id: 1, title: t('step_pending'), icon: SVG_ICONS.orderNoteIcon },
+    { id: 2, title: t('step_confirmed'), icon: SVG_ICONS.orderBox },
+    { id: 3, title: t('step_transit'), icon: SVG_ICONS.vanIcon },
+    { id: 4, title: t('step_out'), icon: SVG_ICONS.vanIcon },
+    { id: 5, title: t('step_delivered'), icon: SVG_ICONS.successIcon },
+  ], [t]);
+
+  if (loading) return <LoadingScreen message={t('updating_status')} />;
 
   if (!orderData || !orderData.order_number) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={{ color: colors.text }}>Order not found</Text>
+        <Text style={{ color: colors.text }}>{t('order_not_found')}</Text>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.retryBtn}
         >
-          <Text style={{ color: 'white' }}>Go Back</Text>
+          <Text style={{ color: 'white' }}>{t('go_back')}</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  // STRICT MAPPING: Based only on delivery_status_display
   const getStatusStep = () => {
     const ds = orderData.delivery_status_display?.toLowerCase() || '';
     if (ds === 'delivered') return 5;
@@ -107,18 +115,7 @@ const LiveOrderScreen = ({ navigation, route }: any) => {
   const currentStep = getStatusStep();
   const rawStatus = orderData.status?.toLowerCase();
   const isError = ['failed', 'returned', 'damaged'].includes(rawStatus);
-
-  // Logic to show OTP UI: Only if "Out for Delivery"
-  const showOTPSection =
-    orderData.delivery_status_display?.toLowerCase() === 'out for delivery';
-
-  const ORDER_STEPS = [
-    { id: 1, title: 'Order Pending', icon: SVG_ICONS.orderNoteIcon },
-    { id: 2, title: 'Confirmed', icon: SVG_ICONS.orderBox },
-    { id: 3, title: 'In Transit', icon: SVG_ICONS.vanIcon },
-    { id: 4, title: 'Out for Delivery', icon: SVG_ICONS.vanIcon },
-    { id: 5, title: 'Delivered', icon: SVG_ICONS.successIcon },
-  ];
+  const showOTPSection = orderData.delivery_status_display?.toLowerCase() === 'out for delivery';
 
   return (
     <View style={[styles.container]}>
@@ -132,7 +129,7 @@ const LiveOrderScreen = ({ navigation, route }: any) => {
           <Icon xml={SVG_ICONS.backIcon} size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>Track Order</Text>
+          <Text style={styles.headerTitle}>{t('track_order')}</Text>
           <Text style={styles.headerOrderId}>{orderData.order_number}</Text>
         </View>
         <View style={{ width: 40 }} />
@@ -142,27 +139,18 @@ const LiveOrderScreen = ({ navigation, route }: any) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        <View
-          style={[styles.statusCard, isError && { borderColor: colors.danger }]}
-        >
+        <View style={[styles.statusCard, isError && { borderColor: colors.danger }]}>
           <View style={styles.statusBadge}>
-            <View
-              style={[
-                styles.dot,
-                { backgroundColor: isError ? colors.danger : colors.success },
-              ]}
-            />
+            <View style={[styles.dot, { backgroundColor: isError ? colors.danger : colors.success }]} />
             <Text style={styles.statusText}>{orderData.status_display}</Text>
           </View>
-          <Text style={styles.deliveryLabel}>Current Status</Text>
-          <Text
-            style={[styles.deliveryValue, isError && { color: colors.danger }]}
-          >
-            {orderData.delivery_status_display || 'Processing'}
+          <Text style={styles.deliveryLabel}>{t('current_status')}</Text>
+          <Text style={[styles.deliveryValue, isError && { color: colors.danger }]}>
+            {orderData.delivery_status_display || t('processing')}
           </Text>
         </View>
 
-        <Text style={styles.sectionTitle}>Delivery Progress</Text>
+        <Text style={styles.sectionTitle}>{t('delivery_progress')}</Text>
         <View style={styles.timelineContainer}>
           {ORDER_STEPS.map((step, index) => {
             const isLast = index === ORDER_STEPS.length - 1;
@@ -181,28 +169,16 @@ const LiveOrderScreen = ({ navigation, route }: any) => {
                       isError && { backgroundColor: colors.border },
                     ]}
                   >
-                    <Icon
-                      xml={step.icon as any}
-                      size={14}
-                      color={isActive ? 'white' : colors.textMuted}
-                    />
+                    <Icon xml={step.icon as any} size={14} color={isActive ? 'white' : colors.textMuted} />
                   </View>
-                  {!isLast && (
-                    <View
-                      style={[styles.line, isCompleted && styles.activeLine]}
-                    />
-                  )}
+                  {!isLast && <View style={[styles.line, isCompleted && styles.activeLine]} />}
                 </View>
 
                 <View style={styles.stepContent}>
-                  <Text
-                    style={[styles.stepTitle, !isActive && styles.pendingText]}
-                  >
+                  <Text style={[styles.stepTitle, !isActive && styles.pendingText]}>
                     {step.title}
                   </Text>
-                  {isCurrent && (
-                    <Text style={styles.currentStatusLabel}>In Progress</Text>
-                  )}
+                  {isCurrent && <Text style={styles.currentStatusLabel}>{t('in_progress')}</Text>}
                 </View>
               </View>
             );
@@ -211,57 +187,35 @@ const LiveOrderScreen = ({ navigation, route }: any) => {
 
         {orderData.delivery_agent && (
           <View style={styles.agentCard}>
-            <Image
-              source={{ uri: 'https://i.pravatar.cc/150' }}
-              style={styles.avatar}
-            />
+            <Image source={{ uri: 'https://i.pravatar.cc/150' }} style={styles.avatar} />
             <View style={styles.agentInfo}>
-              <Text style={styles.agentName}>
-                {orderData.delivery_agent.name}
-              </Text>
-              <Text style={styles.agentPhone}>
-                {orderData.delivery_agent.phone_number || 'Driver'}
-              </Text>
+              <Text style={styles.agentName}>{orderData.delivery_agent.name}</Text>
+              <Text style={styles.agentPhone}>{orderData.delivery_agent.phone_number || t('driver')}</Text>
             </View>
             <TouchableOpacity
               style={styles.callButton}
-              onPress={() =>
-                handleCallAgent(orderData.delivery_agent.phone_number)
-              }
+              onPress={() => handleCallAgent(orderData.delivery_agent.phone_number)}
             >
-              <Icon
-                xml={SVG_ICONS.phoneIcon}
-                size={20}
-                color={colors.primary}
-              />
+              <Icon xml={SVG_ICONS.phoneIcon} size={20} color={colors.primary} />
             </TouchableOpacity>
           </View>
         )}
 
-        {/* OTP SECTION: Visible when "Out for Delivery" regardless of code presence */}
         {showOTPSection && (
           <View style={styles.otpSection}>
-            <Text style={styles.otpLabel}>Delivery Confirmation</Text>
+            <Text style={styles.otpLabel}>{t('delivery_confirmation')}</Text>
 
             {orderData?.delivery_otp?.code ? (
               <>
-                <Text style={styles.otpCode}>
-                  {orderData.delivery_otp.code}
-                </Text>
-                <Text style={styles.otpDisclaimer}>
-                  Share this code with the driver or confirm below.
-                </Text>
+                <Text style={styles.otpCode}>{orderData.delivery_otp.code}</Text>
+                <Text style={styles.otpDisclaimer}>{t('otp_disclaimer')}</Text>
               </>
             ) : (
               <View style={styles.warningBox}>
-                <Text style={styles.warningText}>
-                  OTP not generated yet. Please ask the delivery person to send
-                  the OTP code to your phone.
-                </Text>
+                <Text style={styles.warningText}>{t('otp_not_generated')}</Text>
               </View>
             )}
 
-            {/* Confirm button hides if already confirmed */}
             {!isConfirmed && (
               <TouchableOpacity
                 style={[styles.confirmBtn, isAcknowledging && { opacity: 0.7 }]}
@@ -271,19 +225,15 @@ const LiveOrderScreen = ({ navigation, route }: any) => {
                 {isAcknowledging ? (
                   <ActivityIndicator color="white" />
                 ) : (
-                  <Text style={styles.confirmBtnText}>Confirm Delivery</Text>
+                  <Text style={styles.confirmBtnText}>{t('confirm_delivery')}</Text>
                 )}
               </TouchableOpacity>
             )}
 
             {isConfirmed && (
               <View style={styles.successBadge}>
-                <Icon
-                  xml={SVG_ICONS.successIcon}
-                  size={16}
-                  color={colors.success}
-                />
-                <Text style={styles.successText}>Delivery Confirmed</Text>
+                <Icon xml={SVG_ICONS.successIcon} size={16} color={colors.success} />
+                <Text style={styles.successText}>{t('delivery_confirmed')}</Text>
               </View>
             )}
           </View>
@@ -292,6 +242,7 @@ const LiveOrderScreen = ({ navigation, route }: any) => {
     </View>
   );
 };
+
 
 const makeStyles = (colors: any, isDark: boolean) =>
   StyleSheet.create({

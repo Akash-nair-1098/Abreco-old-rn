@@ -5,13 +5,13 @@ import { AddToCartPayload, mainCategoryPayload, ProductListPayload } from "./pro
  export const mainCategory = async (payload: mainCategoryPayload) => {
   console.log('category api called with', payload);
   const response = await api.get(`products/product-main-category-list?is_landing=${false}&search=${payload.search}`);
-  console.log('response is', response);
+  // console.log('response is', response);
   
   return response.data.results.data;
 };
 
 export const getProductList = async (payload: ProductListPayload = {}) => {
-  console.log('Product list api called with', payload);
+  // console.log('Product list api called with', payload);
 
   // Using POST as this API requires a body for filtering
   const response = await api.post('products/products-list', {
@@ -21,7 +21,7 @@ export const getProductList = async (payload: ProductListPayload = {}) => {
     ...payload,
   });
 
-  console.log('response is', response.data.results.data);
+  // console.log('response is', response.data.results.data);
   
   return response.data.results.data;
 };
@@ -107,7 +107,14 @@ export const getAddressesApi = async () => {
 /**
  * POST: Create a new address
  */
-export const createAddressApi = async (payload: { location_name: string, address: string }) => {
+
+interface CreateAddressPayload {
+  location_name: string;
+  address: string;
+  latitude: string;  // Add this
+  longitude: string; // Add this
+}
+export const createAddressApi = async (payload: CreateAddressPayload) => {
   const response = await api.post('customers/customer-address/', payload);
   return response.data
 };
@@ -220,4 +227,58 @@ export const getOrderTrackingDetails = async (orderId: string) => {
 export const acknowledgeOrder = async (orderId: string) => {
   const response = await api.post(`order/${orderId}/acknowledge`);
   return response.data;
+};
+
+/**
+ * Fetches transaction history with pagination
+ * @param page - The page number to fetch
+ */
+export const getTransactionHistory = async (page: number) => {
+  try {
+    const response = await api.get(`order/financials/transactions`, {
+      params: { page },
+    });
+    console.log('Transactions response:', response.data);
+    return response.data; // Returning full object to access total_pages
+  } catch (error) {
+    console.error('Error fetching transactions:', error);
+    throw error;
+  }
+};
+
+
+/**
+ * Fetches invoices using URL path segments
+ * Example: order/financials/invoices/PAID/this_month?page=1
+ */
+export const getInvoices = async (page: number, status?: string, time?: string) => {
+  try {
+    // Fallback to "all" or "any" if no value is provided to keep URL structure consistent
+    const statusPath = !status || status === 'All' ? 'all' : status.toLowerCase();
+    const timePath = !time ? 'all' : time;
+
+    // Constructing the URL with path segments
+    // Note: page is usually still kept as a query param for standard pagination
+    const url = `order/financials/invoices?status=${statusPath}&time=${timePath}`;
+
+    const response = await api.get(url, {
+      params: { page },
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('API Error [getInvoices]:', error);
+    throw error;
+  }
+};
+
+
+export const getProfileDetails = async () => {
+  try {
+    const response = await api.get('customers/profile-details');
+    return response.data.results.data;
+  } catch (error) {
+    console.error('API Error [getProfileDetails]:', error);
+    throw error;
+  }
 };

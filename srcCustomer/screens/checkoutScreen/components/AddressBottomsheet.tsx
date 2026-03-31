@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import Icon from '../../../../Icon';
 import { SVG_ICONS } from '../../../assets/icons/svg';
@@ -21,6 +22,7 @@ import { useToast } from '../../../components/ToastContext';
 import { useAddressStore } from '../../../store/useAddressStore';
 import { SCREEN_HEIGHT } from '../../../utilities/dimensions';
 import { useTheme } from '../../../../ThemeContext';
+import { GOOGLE_MAPS_API_KEY } from '@env';
 
 const AddressBottomSheet = ({
   visible,
@@ -28,8 +30,9 @@ const AddressBottomSheet = ({
   onSelect,
   isBranchScreen = false,
 }: any) => {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const styles = makeStyles(colors);
+  
 
   const [view, setView] = useState<'list' | 'add'>('list');
   const [isLocating, setIsLocating] = useState(false);
@@ -39,6 +42,11 @@ const AddressBottomSheet = ({
   // Form State
   const [label, setLabel] = useState('');
   const [fullAddress, setFullAddress] = useState('');
+  const [coords, setCoords] = useState<{ lat: string; lng: string } | null>(null);
+  const [detectedLocationName, setDetectedLocationName] = useState('');
+
+  // Validation State
+  const [errors, setErrors] = useState<{ label?: string; address?: string; location?: string }>({});
 
   useEffect(() => {
     if (visible && !isBranchScreen) {
@@ -54,16 +62,25 @@ const AddressBottomSheet = ({
     }
 
     setIsLocating(true);
+    setErrors(prev => ({ ...prev, location: undefined }));
+    
     try {
-      const coords: any = await getCurrentCoordinates();
-      // Note: In production, use your actual Google Key
+      const location: any = await getCurrentCoordinates();
+      const lat = location.latitude.toString();
+      const lng = location.longitude.toString();
+      
+      setCoords({ lat, lng });
+      // Note: Replace YOUR_API_KEY with your actual Google Maps API Key
       const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${coords.latitude},${coords.longitude}&key=YOUR_API_KEY`,
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`,
       );
       const json = await response.json();
+      // console.log('json is', json)
 
       if (json.results && json.results.length > 0) {
-        setFullAddress(json.results[0].formatted_address);
+        const addressName = json.results[0].formatted_address;
+        setDetectedLocationName(addressName);
+        if (!fullAddress) setFullAddress(addressName);
       }
     } catch (error) {
       console.error(error);
@@ -73,28 +90,53 @@ const AddressBottomSheet = ({
     }
   };
 
-  const handleSave = async () => {
-    if (!label.trim() || !fullAddress.trim()) {
-      showToast('Please fill in all fields');
-      return;
+  const validate = () => {
+    let valid = true;
+    let newErrors: any = {};
+
+    if (!label.trim()) {
+      newErrors.label = 'Location label is required';
+      valid = false;
+    }
+    if (!fullAddress.trim()) {
+      newErrors.address = 'Please provide full address details';
+      valid = false;
+    }
+    if (!coords) {
+      newErrors.location = 'Location coordinates are mandatory for delivery';
+      valid = false;
     }
 
+    setErrors(newErrors);
+    return valid;
+  };
+
+  const handleSave = async () => {
+    if (!validate()) return;
+
     try {
-      const newAddressFromServer = await addAddress(label, fullAddress);
-      showToast('Address saved successfully');
+      const newAddressFromServer = await addAddress(
+        label,
+        fullAddress,
+        coords!.lat,
+        coords!.lng
+      );
+      showToast('Address saved successfully', 'success');
       onSelect(newAddressFromServer);
       resetForm();
       onClose();
     } catch (error: any) {
-      const msg =
-        error.response?.data?.detail || 'Could not save address. Try again.';
-      showToast(msg);
+      const msg = error.response?.data?.detail || 'Could not save address.';
+      showToast(msg, 'error');
     }
   };
 
   const resetForm = () => {
     setLabel('');
     setFullAddress('');
+    setCoords(null);
+    setDetectedLocationName('');
+    setErrors({});
     setView('list');
   };
 
@@ -103,9 +145,6 @@ const AddressBottomSheet = ({
       {loading && !isBranchScreen ? (
         <View style={[styles.overlay, styles.centered]}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={{ color: colors.text, marginTop: 10 }}>
-            Loading Address...
-          </Text>
         </View>
       ) : (
         <KeyboardAvoidingView
@@ -113,17 +152,11 @@ const AddressBottomSheet = ({
           style={styles.overlay}
         >
           <View style={styles.sheet}>
-            {/* Header */}
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>
                 {view === 'list' ? 'Select Address' : 'Add New Address'}
               </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  resetForm();
-                  onClose();
-                }}
-              >
+              <TouchableOpacity onPress={() => { resetForm(); onClose(); }}>
                 <View style={styles.closeCircle}>
                   <Icon xml={SVG_ICONS.close} size={20} color={colors.text} />
                 </View>
@@ -131,22 +164,14 @@ const AddressBottomSheet = ({
             </View>
 
             {view === 'list' && !isBranchScreen ? (
-              /* ADDRESS LIST VIEW */
               <FlatList
                 showsVerticalScrollIndicator={false}
                 data={addresses}
                 keyExtractor={item => item.id.toString()}
                 renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.addrItem}
-                    onPress={() => onSelect(item)}
-                  >
+                  <TouchableOpacity style={styles.addrItem} onPress={() => onSelect(item)}>
                     <View style={styles.addrIcon}>
-                      <Icon
-                        xml={SVG_ICONS.branchesBuilding}
-                        size={24}
-                        color={colors.primary}
-                      />
+                      <Icon xml={SVG_ICONS.branchesBuilding} size={24} color={colors.primary} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.addrName}>{item.location_name}</Text>
@@ -155,77 +180,86 @@ const AddressBottomSheet = ({
                   </TouchableOpacity>
                 )}
                 ListFooterComponent={
-                  <TouchableOpacity
-                    style={styles.addNewBtn}
-                    onPress={() => setView('add')}
-                  >
-                    <Icon
-                      xml={SVG_ICONS.addIcon}
-                      size={22}
-                      color={colors.primary}
-                    />
+                  <TouchableOpacity style={styles.addNewBtn} onPress={() => setView('add')}>
+                    <Icon xml={SVG_ICONS.addIcon} size={22} color={colors.primary} />
                     <Text style={styles.addNewText}>Add New Address</Text>
                   </TouchableOpacity>
                 }
               />
             ) : (
-              /* ADD ADDRESS FORM VIEW */
-              <View style={styles.formContainer}>
-                <Text style={styles.inputLabel}>
-                  LOCATION LABEL (E.G., BRANCH 2)
-                </Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter label"
-                  placeholderTextColor={colors.textMuted}
-                  value={label}
-                  onChangeText={setLabel}
-                />
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={styles.formContainer}>
+                  <View style={styles.infoBox}>
+                    <Icon xml={SVG_ICONS.infoCircle} size={18} color={colors.primary} />
+                    <Text style={styles.infoBoxText}>
+                      Please add this address from the place where you want the product to be delivered.
+                    </Text>
+                  </View>
 
-                <Text style={styles.inputLabel}>FULL ADDRESS</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  placeholder="Enter street, building, area..."
-                  placeholderTextColor={colors.textMuted}
-                  multiline
-                  numberOfLines={4}
-                  value={fullAddress}
-                  onChangeText={setFullAddress}
-                />
+                  <Text style={styles.inputLabel}>LOCATION LABEL</Text>
+                  <TextInput
+                    style={[styles.input, errors.label && styles.inputError]}
+                    placeholder="E.g., Home, Shop, Branch 2"
+                    placeholderTextColor={colors.textMuted}
+                    value={label}
+                    onChangeText={(val) => {
+                        setLabel(val);
+                        if(val) setErrors(p => ({...p, label: undefined}));
+                    }}
+                  />
+                  {errors.label && <Text style={styles.errorText}>{errors.label}</Text>}
 
-                <TouchableOpacity
-                  style={styles.locationButton}
-                  onPress={handleFetchLocation}
-                  disabled={isLocating}
-                >
-                  {isLocating ? (
-                    <ActivityIndicator size="small" color={colors.primary} />
-                  ) : (
-                    <>
-                      <Icon
-                        xml={SVG_ICONS.locationPin}
-                        size={16}
-                        color={colors.primary}
-                      />
-                      <Text style={styles.locationButtonText}>
-                        Use Current Location
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
+                  <Text style={styles.inputLabel}>FULL ADDRESS</Text>
+                  <TextInput
+                    style={[styles.input, styles.textArea, errors.address && styles.inputError]}
+                    placeholder="House No, Street, Landmark..."
+                    placeholderTextColor={colors.textMuted}
+                    multiline
+                    numberOfLines={4}
+                    value={fullAddress}
+                    onChangeText={(val) => {
+                        setFullAddress(val);
+                        if(val) setErrors(p => ({...p, address: undefined}));
+                    }}
+                  />
+                  {errors.address && <Text style={styles.errorText}>{errors.address}</Text>}
 
-                <View style={styles.formButtons}>
                   <TouchableOpacity
-                    style={styles.cancelBtn}
-                    onPress={() => setView('list')}
+                    style={styles.locationButton}
+                    onPress={handleFetchLocation}
+                    disabled={isLocating}
                   >
-                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                    {isLocating ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <>
+                        <Icon xml={SVG_ICONS.locationPin} size={16} color={colors.primary} />
+                        <Text style={styles.locationButtonText}>Use Current Location</Text>
+                      </>
+                    )}
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                    <Text style={styles.saveBtnText}>Save Address</Text>
-                  </TouchableOpacity>
+                  {errors.location && <Text style={[styles.errorText, {marginTop: -5, marginBottom: 10}]}>{errors.location}</Text>}
+
+                  {/* READ-ONLY GPS DISPLAY */}
+                  <Text style={styles.inputLabel}>GPS DETECTED LOCATION (READ-ONLY)</Text>
+                  <TextInput
+                    style={[styles.input, styles.disabledInput]}
+                    value={detectedLocationName || 'Location not fetched yet'}
+                    editable={false}
+                    multiline
+                    placeholderTextColor={colors.textMuted}
+                  />
+
+                  <View style={styles.formButtons}>
+                    <TouchableOpacity style={styles.cancelBtn} onPress={() => setView('list')}>
+                      <Text style={styles.cancelBtnText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+                      <Text style={styles.saveBtnText}>Save Address</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
+              </ScrollView>
             )}
           </View>
         </KeyboardAvoidingView>
@@ -236,145 +270,40 @@ const AddressBottomSheet = ({
 
 const makeStyles = (colors: any) =>
   StyleSheet.create({
-    overlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.6)',
-      justifyContent: 'flex-end',
-    },
-    centered: {
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: colors.background + 'B3', // 70% opacity
-    },
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    centered: { justifyContent: 'center', alignItems: 'center' },
     sheet: {
       backgroundColor: colors.surface,
       borderTopLeftRadius: 28,
       borderTopRightRadius: 28,
       padding: 24,
-      minHeight: 400,
-      maxHeight: SCREEN_HEIGHT * 0.8,
-      borderWidth: 1,
-      borderColor: colors.border,
+      maxHeight: SCREEN_HEIGHT * 0.9,
     },
-    sheetHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 24,
-    },
+    sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
     sheetTitle: { color: colors.text, fontSize: 22, fontWeight: '800' },
-    closeCircle: {
-      backgroundColor: colors.background,
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-
-    // List Styles
-    addrItem: {
-      flexDirection: 'row',
-      padding: 18,
-      backgroundColor: colors.background,
-      borderRadius: 20,
-      marginBottom: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    addrIcon: {
-      padding: 10,
-      backgroundColor: colors.surface,
-      borderRadius: 12,
-      marginRight: 14,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
+    closeCircle: { backgroundColor: colors.background, width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+    addrItem: { flexDirection: 'row', padding: 18, backgroundColor: colors.background, borderRadius: 20, marginBottom: 12, borderWidth: 1, borderColor: colors.border },
+    addrIcon: { padding: 10, backgroundColor: colors.surface, borderRadius: 12, marginRight: 14, borderWidth: 1, borderColor: colors.border },
     addrName: { color: colors.text, fontSize: 16, fontWeight: 'bold' },
     addrStreet: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
-    addNewBtn: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 18,
-      borderRadius: 20,
-      borderStyle: 'dashed',
-      borderWidth: 1.5,
-      borderColor: colors.primary,
-      marginTop: 8,
-    },
-    addNewText: {
-      color: colors.text,
-      marginLeft: 10,
-      fontWeight: '700',
-      fontSize: 16,
-    },
-
-    // Form Styles
+    addNewBtn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 18, borderRadius: 20, borderStyle: 'dashed', borderWidth: 1.5, borderColor: colors.primary, marginTop: 8 },
+    addNewText: { color: colors.text, marginLeft: 10, fontWeight: '700', fontSize: 16 },
     formContainer: { marginTop: 10 },
-    inputLabel: {
-      color: colors.textMuted,
-      fontSize: 12,
-      fontWeight: '800',
-      marginBottom: 10,
-      letterSpacing: 0.5,
-    },
-    input: {
-      backgroundColor: colors.background,
-      borderRadius: 16,
-      padding: 16,
-      color: colors.text,
-      fontSize: 16,
-      marginBottom: 20,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    textArea: {
-      height: 120,
-      textAlignVertical: 'top',
-    },
-    formButtons: {
-      flexDirection: 'row',
-      gap: 12,
-      marginTop: 10,
-      marginBottom: Platform.OS === 'ios' ? 20 : 0,
-    },
-    cancelBtn: {
-      flex: 1,
-      height: 56,
-      borderRadius: 16,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: 'transparent',
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    saveBtn: {
-      flex: 1.5,
-      height: 56,
-      borderRadius: 16,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: colors.primary,
-    },
+    infoBox: { backgroundColor: colors.primary + '15', padding: 12, borderRadius: 12, flexDirection: 'row', gap: 10, marginBottom: 20, alignItems: 'center' },
+    infoBoxText: { color: colors.primary, fontSize: 13, fontWeight: '600', flex: 1 },
+    inputLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '800', marginBottom: 8, letterSpacing: 0.5 },
+    input: { backgroundColor: colors.background, borderRadius: 16, padding: 16, color: colors.text, fontSize: 16, marginBottom: 5, borderWidth: 1, borderColor: colors.border },
+    inputError: { borderColor: '#FF5252' },
+    errorText: { color: '#FF5252', fontSize: 12, marginBottom: 15, fontWeight: '600' },
+    disabledInput: { backgroundColor: colors.surface, opacity: 0.7, color: colors.textMuted },
+    textArea: { height: 100, textAlignVertical: 'top' },
+    locationButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 6 },
+    locationButtonText: { color: colors.primary, fontSize: 14, fontWeight: '700' },
+    formButtons: { flexDirection: 'row', gap: 12, marginTop: 20, marginBottom: Platform.OS === 'ios' ? 40 : 20 },
+    cancelBtn: { flex: 1, height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+    saveBtn: { flex: 1.5, height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary },
     cancelBtnText: { color: colors.text, fontWeight: 'bold', fontSize: 16 },
     saveBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
-
-    locationButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 8,
-      gap: 6,
-      marginTop: -15,
-      marginBottom: 15,
-    },
-    locationButtonText: {
-      color: colors.primary,
-      fontSize: 14,
-      fontWeight: '600',
-    },
   });
 
 export default AddressBottomSheet;

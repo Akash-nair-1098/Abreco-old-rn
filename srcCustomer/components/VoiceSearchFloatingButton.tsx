@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
-  Modal,
-  ActivityIndicator,
   Animated,
   StyleSheet,
-  Dimensions,
+  Pressable,
+  Vibration,
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
 import Voice, {
   SpeechResultsEvent,
@@ -19,10 +19,9 @@ import Icon from '../../Icon';
 import { SVG_ICONS } from '../assets/icons/svg';
 import { globalSearchProducts } from '../api/products/productsApi';
 import { useCartStore } from '../store/useCartStore';
+import { useSearchStore } from '../store/useSearchStore'; 
 import { useToast } from './ToastContext';
 import * as NavigationService from '../navigation/NavigationService';
-
-const { width } = Dimensions.get('window');
 
 export const VoiceSearchFloatingUI = () => {
   const { t, i18n } = useTranslation();
@@ -30,114 +29,152 @@ export const VoiceSearchFloatingUI = () => {
   const styles = makeStyles(colors, isDark);
 
   const addToCart = useCartStore(state => state.addItem);
+  const { setSearchText } = useSearchStore(); 
   const { showToast } = useToast();
 
-  const [isVisible, setIsVisible] = useState(false);
-  const [transcript, setTranscript] = useState('');
+  const [isListening, setIsListening] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [transcript, setTranscript] = useState('');
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const latestTranscript = useRef('');
+  const isStarting = useRef(false); // New lock to prevent double-starts
 
   useEffect(() => {
-    // Initialize Voice listeners
-    Voice.onSpeechStart = () => console.log('Speech Started');
-    Voice.onSpeechResults = onSpeechResults;
-    Voice.onSpeechPartialResults = e => {
-      if (e.value) setTranscript(e.value[0]);
+    Voice.onSpeechStart = () => {
+      setIsListening(true);
+      isStarting.current = false;
     };
+    
+    Voice.onSpeechEnd = () => {
+      setIsListening(false);
+    };
+
     Voice.onSpeechError = (e: SpeechErrorEvent) => {
       console.log('Voice Error:', e);
-      stopListening();
+      setTranscript('');
+      latestTranscript.current = '';
+      forceCleanup();
+    };
+
+    Voice.onSpeechPartialResults = (e) => {
+      if (e.value && e.value[0]) {
+        setTranscript(e.value[0]);
+        latestTranscript.current = e.value[0];
+      }
+    };
+
+    Voice.onSpeechResults = (e: SpeechResultsEvent) => {
+      if (e.value && e.value[0]) {
+        setTranscript(e.value[0]);
+        latestTranscript.current = e.value[0];
+      }
     };
 
     return () => {
-      // Cleanup on unmount
-      Voice.destroy().then(Voice.removeAllListeners);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      forceCleanup();
+      Voice.removeAllListeners();
     };
   }, []);
 
-  const onSpeechResults = (e: SpeechResultsEvent) => {
-    if (e.value && e.value[0]) {
-      const text = e.value[0];
-      setTranscript(text);
-
-      // We wait a brief moment for the user to finish before processing intent
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(() => {
-        handleVoiceIntent(text);
-      }, 800);
+  const forceCleanup = async () => {
+    try {
+      setIsListening(false);
+      isStarting.current = false;
+      pulseAnim.setValue(1);
+      await Voice.stop();
+      await Voice.destroy();
+    } catch (e) {
+      // Silently fail if already destroyed
     }
   };
 
-  const startListening = async () => {
+  const handlePressIn = async () => {
+    if (isStarting.current || isProcessing) return;
+    
+    isStarting.current = true;
+    setTranscript('');
+    latestTranscript.current = '';
+
     try {
-      setTranscript('');
-      setIsVisible(true);
-      setIsProcessing(false);
-
-      // Force language based on i18next (e.g., 'en-US', 'hi-IN', 'ar-SA')
-      const currentLang = i18n.language || 'en-US';
-      await Voice.start(currentLang);
-
+      // Critical: Ensure old instance is dead before starting new
+      await Voice.destroy(); 
+      
+      Vibration.vibrate(50); 
+      
+      Animated.spring(scaleAnim, { toValue: 1.3, useNativeDriver: true, friction: 4 }).start();
       Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.3,
-            duration: 600,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 600,
-            useNativeDriver: true,
-          }),
-        ]),
+          Animated.timing(pulseAnim, { toValue: 1.5, duration: 500, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+        ])
       ).start();
+
+      const localeMap: { [key: string]: string } = {
+        en: 'en-US', ar: 'ar-SA', ml: 'ml-IN', hi: 'hi-IN', es: 'es-ES', zh: 'zh-CN',
+      };
+      
+      // Small delay helps native modules reset audio focus
+      setTimeout(async () => {
+        try {
+            await Voice.start(localeMap[i18n.language] || 'en-US');
+        } catch (err) {
+            forceCleanup();
+        }
+      }, 50);
+
     } catch (e) {
-      console.error('Start Voice Error:', e);
-      setIsVisible(false);
+      forceCleanup();
     }
   };
 
-  const stopListening = async () => {
+  const handlePressOut = async () => {
+    Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, friction: 4 }).start();
+    pulseAnim.stopAnimation();
+    pulseAnim.setValue(1);
+
     try {
+      // Stop immediately on release
       await Voice.stop();
-      pulseAnim.setValue(1);
-      setIsVisible(false);
-      setIsProcessing(false);
+      
+      // Delay processing slightly to ensure 'onSpeechResults' has time to fire
+      setTimeout(() => {
+        const finalResult = latestTranscript.current;
+        setIsListening(false);
+        isStarting.current = false;
+        
+        if (finalResult) {
+          processVoiceCommand(finalResult);
+        }
+      }, 400); 
     } catch (e) {
-      console.error(e);
+      forceCleanup();
     }
   };
 
-  const handleVoiceIntent = async (text: string) => {
-    if (isProcessing) return;
-
-    // Get multi-language triggers from i18n
-    const triggers = (t('voice_add_triggers', {
-      returnObjects: true,
-    }) as string[]) || ['add', 'buy'];
-
-    const lowerText = text.toLowerCase();
-    const isAddIntent = triggers.some(trigger =>
-      lowerText.includes(trigger.toLowerCase()),
-    );
-
+  const processVoiceCommand = async (text: string) => {
+    if (isProcessing || !text) return;
     setIsProcessing(true);
+    
+    const lowerText = text.toLowerCase();
+    const triggers = (t('voice_add_triggers', { returnObjects: true }) as string[]) || [
+        'add', 'cart', 'जोड़ें', 'add to cart', 'ചേർക്കുക', 'añadir', 'اضف', '添加'
+    ];
+    
+    const isAddIntent = triggers.some(trigger => lowerText.includes(trigger.toLowerCase()));
 
     try {
-      // Clean up the search term (remove the triggers from the text)
       let searchTerm = lowerText;
       if (isAddIntent) {
         triggers.forEach(tr => {
-          const regex = new RegExp(`\\b${tr.toLowerCase()}\\b`, 'gi');
+          const regex = new RegExp(`${tr.toLowerCase()}`, 'gi');
           searchTerm = searchTerm.replace(regex, '');
         });
       }
       searchTerm = searchTerm.trim();
-
+      
       if (!searchTerm) {
         setIsProcessing(false);
         return;
@@ -145,166 +182,79 @@ export const VoiceSearchFloatingUI = () => {
 
       const results = await globalSearchProducts(searchTerm);
 
-      if (isAddIntent && results?.length === 1) {
-        // Direct successful "Add to Cart"
+      if (isAddIntent && results && results.length > 0) {
         const product = results[0];
         await addToCart(product, 1);
-        showToast(
-          t('added_to_cart_success', { item: product.name || product.title }),
-          'success',
-        );
-        await stopListening();
-      } else {
-        // Fallback: Navigate to search screen with results
+        showToast(t('added_to_cart_success', { item: product.name || product.title }), 'success');
+      } else if (results && results.length > 0) {
+        setSearchText(searchTerm);
+
         NavigationService.navigate('SearchStack', {
           screen: 'VoiceSearchScreen',
-          params: {
-            results: results || [],
-            term: searchTerm,
-            isGlobalSearch: false,
+          params: { 
+            results: results, 
+            term: searchTerm, 
+            isGlobalSearch: true 
           },
         });
-        await stopListening();
+      } else {
+        showToast(t('no_products_found'), 'warning');
       }
     } catch (err) {
-      console.error('Voice Intent Error:', err);
       showToast(t('voice_error_message'), 'error');
     } finally {
       setIsProcessing(false);
+      setTranscript('');
+      latestTranscript.current = '';
     }
   };
 
   return (
-    <>
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={startListening}
-        activeOpacity={0.8}
-      >
-        <Icon xml={SVG_ICONS.micIcon} size={28} color="white" />
-      </TouchableOpacity>
-
-      <Modal visible={isVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.sheet}>
-            <View style={styles.handle} />
-
-            <Text style={styles.statusTitle}>
-              {isProcessing ? t('voice_processing') : t('voice_listening')}
-            </Text>
-
-            <View style={styles.transcriptContainer}>
-              <Text style={styles.transcriptText}>
-                {transcript || t('voice_placeholder')}
-              </Text>
-            </View>
-
-            <View style={styles.animationBox}>
-              {isProcessing ? (
-                <ActivityIndicator color={colors.primary} size="large" />
-              ) : (
-                <Animated.View
-                  style={[
-                    styles.pulseCircle,
-                    { transform: [{ scale: pulseAnim }] },
-                  ]}
-                />
-              )}
-            </View>
-
-            <TouchableOpacity
-              onPress={stopListening}
-              style={styles.closeButton}
-            >
-              <Text style={styles.closeButtonText}>{t('cancel')}</Text>
-            </TouchableOpacity>
-          </View>
+    <View style={styles.container} pointerEvents="box-none">
+      {(isListening || transcript !== '') && (
+        <View style={styles.floatingTranscript}>
+          <View style={styles.recIndicator} />
+          <Text style={styles.transcriptText} numberOfLines={2}>
+            {transcript || t('voice_listening')}
+          </Text>
         </View>
-      </Modal>
-    </>
+      )}
+
+      <View style={styles.buttonWrapper}>
+        {isListening && (
+          <Animated.View style={[styles.pulseRing, { transform: [{ scale: pulseAnim }] }]} />
+        )}
+        
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+          <Pressable
+            onPressIn={handlePressIn}
+            onPressOut={handlePressOut}
+            disabled={isProcessing}
+            style={({ pressed }) => [
+              styles.fab,
+              { backgroundColor: isProcessing ? colors.textMuted : colors.primary },
+              pressed && { opacity: 0.8 }
+            ]}
+          >
+            {isProcessing ? (
+              <ActivityIndicator color="white" size="small" />
+            ) : (
+              <Icon xml={SVG_ICONS.micIcon} size={28} color="white" />
+            )}
+          </Pressable>
+        </Animated.View>
+      </View>
+    </View>
   );
 };
 
-// --- Themed Styles Factory ---
-
 const makeStyles = (colors: any, isDark: boolean) =>
   StyleSheet.create({
-    fab: {
-      position: 'absolute',
-      bottom: 100,
-      right: 20,
-      width: 64,
-      height: 64,
-      borderRadius: 32,
-      backgroundColor: colors.primary,
-      justifyContent: 'center',
-      alignItems: 'center',
-      elevation: 5,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.25,
-      shadowRadius: 3.84,
-      zIndex: 9999,
-    },
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      justifyContent: 'flex-end',
-    },
-    sheet: {
-      backgroundColor: colors.surface,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      padding: 24,
-      alignItems: 'center',
-      minHeight: 350,
-    },
-    handle: {
-      width: 40,
-      height: 5,
-      backgroundColor: colors.border,
-      borderRadius: 3,
-      marginBottom: 20,
-    },
-    statusTitle: {
-      fontSize: 14,
-      fontWeight: '700',
-      color: colors.primary,
-      letterSpacing: 1.5,
-      textTransform: 'uppercase',
-      marginBottom: 15,
-    },
-    transcriptContainer: {
-      width: '100%',
-      paddingHorizontal: 10,
-      marginBottom: 20,
-    },
-    transcriptText: {
-      fontSize: 20,
-      fontWeight: '600',
-      color: colors.text,
-      textAlign: 'center',
-      lineHeight: 28,
-    },
-    animationBox: {
-      height: 100,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    pulseCircle: {
-      width: 24,
-      height: 24,
-      borderRadius: 12,
-      backgroundColor: colors.primary,
-    },
-    closeButton: {
-      marginTop: 20,
-      paddingVertical: 12,
-      paddingHorizontal: 30,
-    },
-    closeButtonText: {
-      fontSize: 16,
-      color: colors.textMuted,
-      fontWeight: '600',
-    },
+    container: { position: 'absolute', bottom: 110, right: 25, alignItems: 'center', zIndex: 1000 },
+    buttonWrapper: { justifyContent: 'center', alignItems: 'center' },
+    fab: { width: 68, height: 68, borderRadius: 34, justifyContent: 'center', alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.35, shadowRadius: 6 },
+    pulseRing: { position: 'absolute', width: 90, height: 90, borderRadius: 45, backgroundColor: colors.primary, opacity: 0.25 },
+    floatingTranscript: { position: 'absolute', bottom: 85, right: 0, width: 260, backgroundColor: colors.surface, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 20, flexDirection: 'row', alignItems: 'center', elevation: 6, borderWidth: 1, borderColor: colors.border, marginBottom: 10 },
+    recIndicator: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#F43F5E', marginRight: 10 },
+    transcriptText: { flex: 1, fontSize: 15, color: colors.text, fontWeight: '600', textAlign: 'left' },
   });

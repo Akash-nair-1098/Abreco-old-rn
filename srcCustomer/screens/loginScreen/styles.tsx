@@ -10,7 +10,7 @@ export const loginScreenStyles = (
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: colors.background,
+      backgroundColor:"#FC0808",
     },
     scrollContent: {
       flexGrow: 1,
@@ -22,11 +22,16 @@ export const loginScreenStyles = (
       alignItems: 'center',
       marginTop: insets.top + 20,
       marginBottom: 20,
+      backgroundColor:'#000000',
+    width:150,
+    height:150,
+    alignSelf:'center',
+    borderRadius:40
     },
     logo: {
-      width: 150,
-      height: 150,
-      resizeMode: 'contain',
+      width: '100%',
+      height: '100%',
+      resizeMode: 'cover',
     },
     card: {
       width: '100%',
@@ -103,6 +108,9 @@ export const loginScreenStyles = (
       flex: 1,
       justifyContent: 'center',
       alignItems: 'center',
+      backgroundColor:"#FC0808",
+      borderRadius: 14,
+      height: 56,
     },
     btnText: {
       color: 'white',

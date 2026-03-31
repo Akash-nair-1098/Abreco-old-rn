@@ -1,18 +1,20 @@
-import { Text, TextInput, View } from "react-native";
-import { registrationStyles } from "../styles";
-import Icon from "../../../../Icon";
-
+import React from 'react';
+import { Text, TextInput, View } from 'react-native';
+import { makeStyles } from '../styles';
+import Icon from '../../../../Icon';
+import { useTheme } from '../../../../ThemeContext';
 
 const CustomInput: React.FC<{
   label: string;
   placeholder: string;
   value: string;
   onChangeText: (text: string) => void;
-  error?: string;
+  error?: string | null;
   icon?: string;
   multiline?: boolean;
   keyboardType?: any;
   maxLength?: number;
+  disabled?: boolean;
 }> = ({
   label,
   placeholder,
@@ -23,31 +25,47 @@ const CustomInput: React.FC<{
   multiline,
   keyboardType,
   maxLength,
-}) =>{
-  const styles = registrationStyles;
+  disabled = false,
+}) => {
+  const { colors, isDark } = useTheme();
+  const styles = makeStyles(colors, isDark);
 
   return (
     <View style={styles.inputWrapper}>
       <Text style={styles.inputLabel}>{label}</Text>
-      <View style={[styles.inputContainer, error && styles.inputError]}>
-        {icon &&<View style={{marginRight:5, marginLeft:5}}>
-             <Icon xml={icon} size={20} /></View>}
+      <View
+        style={[
+          styles.inputContainer,
+          !!error && styles.inputError,
+          disabled && {
+            backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+            borderColor: colors.border,
+            opacity: 0.65,
+          },
+        ]}
+      >
+        {icon && (
+          <View style={{ marginRight: 5, marginLeft: 5 }}>
+            <Icon xml={icon} size={20} color={disabled ? colors.textMuted : colors.text} />
+          </View>
+        )}
         <TextInput
           style={[styles.input, multiline && styles.multilineInput]}
           placeholder={placeholder}
-          placeholderTextColor="#6B7280"
+          placeholderTextColor={colors.textMuted}
           value={value}
           onChangeText={onChangeText}
           multiline={multiline}
           textAlignVertical={multiline ? 'top' : 'center'}
           keyboardType={keyboardType}
           maxLength={maxLength}
+          editable={!disabled}
+          selectTextOnFocus={!disabled}
         />
       </View>
-      {error && <Text style={styles.errorText}>{error}</Text>}
+      {!!error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );
 };
-
 
 export default CustomInput;

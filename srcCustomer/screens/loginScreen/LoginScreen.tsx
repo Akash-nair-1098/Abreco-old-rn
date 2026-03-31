@@ -22,12 +22,14 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { login } from '../../api/auth/authApi';
 import { useTranslation } from 'react-i18next';
 import { loginScreenStyles } from './styles';
+import { useToast } from '../../components/ToastContext';
 
 const LoginScreen = ({ navigation }: any) => {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const styles = loginScreenStyles(insets, colors, isDark);
   const { t } = useTranslation();
+  const { showToast } = useToast()
 
   const [customerId, setCustomerId] = useState('');
   const [customerCode, setCustomerCode] = useState('');
@@ -60,12 +62,23 @@ const LoginScreen = ({ navigation }: any) => {
 
       if (data?.access) {
         setAuth(data.refresh, data.access, data.has_password_changed);
+      } else {
+        if (data.rejected) {
+          navigation.navigate('BusinessDetails', {
+            user_id: data.user_id,
+            secret_token: data.secret_token,
+            phone_number: data.phone_number,
+            isRejected: true,
+          });
+        } else {
+          // NEW LOGIC: If not rejected and no token, it means it's pending review
+          navigation.navigate('RegistrationStatus', {
+            user_id: data.user_id,
+          });
+        }
       }
     } catch (error: any) {
-      Alert.alert(
-        'Login Error',
-        error.response?.data?.message || 'Login failed.',
-      );
+      showToast(error?.message ?? 'Login Error', 'error');
     } finally {
       setLoading(false);
     }
@@ -87,7 +100,7 @@ const LoginScreen = ({ navigation }: any) => {
               source={
                 isDark
                   ? require('../../assets/images/logoWhite.png')
-                  : require('../../assets/images/logoWhite.png') // Replace with Dark Logo if available
+                  : require('../../assets/images/logoWhite.png') 
               }
               style={styles.logo}
             />
@@ -101,7 +114,7 @@ const LoginScreen = ({ navigation }: any) => {
             <View
               style={[
                 styles.inputContainer,
-                errors.customerId && styles.errorBorder,
+                errors.customerId ? styles.errorBorder : null,
               ]}
             >
               <View style={styles.iconPrefix}>
@@ -128,7 +141,7 @@ const LoginScreen = ({ navigation }: any) => {
             <View
               style={[
                 styles.inputContainer,
-                errors.customerCode && styles.errorBorder,
+                errors.customerCode ? styles.errorBorder : null,
               ]}
             >
               <View style={styles.iconPrefix}>
@@ -150,11 +163,11 @@ const LoginScreen = ({ navigation }: any) => {
                 style={styles.eyeIcon}
                 onPress={() => setShowPassword(!showPassword)}
               >
-                <Icon
+                {/* <Icon
                   xml={showPassword ? SVG_ICONS.eyeIcon : SVG_ICONS.eyeOffIcon}
                   size={20}
                   color={colors.textMuted}
-                />
+                /> */}
               </TouchableOpacity>
             </View>
             {errors.customerCode && (
@@ -162,12 +175,12 @@ const LoginScreen = ({ navigation }: any) => {
             )}
 
             <View style={styles.buttonWrapper}>
-              <LinearGradient
-                colors={['#EF4444', colors.primary]}
+              {/* <LinearGradient
+                colors={['#C62828', "#C62828"]}
                 start={{ x: 0, y: 0.5 }}
                 end={{ x: 1, y: 0.5 }}
                 style={styles.gradientBtn}
-              >
+              > */}
                 <TouchableOpacity
                   style={styles.innerBtn}
                   onPress={handleLogin}
@@ -179,7 +192,7 @@ const LoginScreen = ({ navigation }: any) => {
                     <Text style={styles.btnText}>Sign In</Text>
                   )}
                 </TouchableOpacity>
-              </LinearGradient>
+              {/* </LinearGradient> */}
             </View>
 
             <View style={styles.footerRow}>

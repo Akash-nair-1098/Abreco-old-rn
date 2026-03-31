@@ -2,6 +2,11 @@
 
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 <uses-permission android:name="android.permission.INTERNET" />
+
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+<uses-permission android:name="android.permission.VIBRATE" />
+
 <queries>
     <intent>
         <action android:name="android.speech.RecognitionService" />
@@ -12,9 +17,8 @@
       android:name=".MainApplication"
       android:label="@string/app_name"
       android:icon="@mipmap/ic_launcher"
-      android:roundIcon="@mipmap/ic_launcher_round"
       android:allowBackup="false"
-      android:theme="@style/AppTheme">
+      android:theme="@style/BootTheme">
       <activity
         android:name=".MainActivity"
         android:label="@string/app_name"

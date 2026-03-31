@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,78 +7,37 @@ import {
   FlatList,
   Modal,
   StatusBar,
+  ActivityIndicator,
+  Linking,
+  RefreshControl,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from '../../../Icon';
 import { SVG_ICONS } from '../../assets/icons/svg';
 import * as NavigationService from '../../navigation/NavigationService';
 import { useTheme } from '../../../ThemeContext';
+import { getInvoices } from '../../api/products/productsApi';
 
-// --- Types & Mock Data ---
-type TabType = 'All' | 'Pending' | 'Generated';
+// --- Types ---
+type TabType = 'All' | 'PAID' | 'UNPAID';
+type TimeFilter = 'this_month' | 'last_month' | '';
 
 interface Invoice {
   id: string;
-  orderNumber: string;
+  invoice_number: string;
+  order_ref: string;
   date: string;
-  amount: number;
-  status: 'Pending' | 'Generated' | 'Unpaid';
-  method: string;
-  txnId: string;
+  due_date: string;
+  amount: string;
+  status: string;
+  pdf_url: string;
 }
-
-const INVOICE_DATA: Invoice[] = [
-  {
-    id: '1',
-    orderNumber: '#839201',
-    date: '12 Oct 2023, 10:45 AM',
-    amount: 135.0,
-    status: 'Generated',
-    method: 'Wallet',
-    txnId: 'TXN-99203102',
-  },
-  {
-    id: '2',
-    orderNumber: '#839190',
-    date: '15 Oct 2023, 11:20 AM',
-    amount: 250.0,
-    status: 'Unpaid',
-    method: 'Credit Limit',
-    txnId: 'TXN-99203105',
-  },
-  {
-    id: '3',
-    orderNumber: '#839185',
-    date: '18 Oct 2023, 09:00 AM',
-    amount: 410.5,
-    status: 'Generated',
-    method: 'Bank Transfer',
-    txnId: 'TXN-99203110',
-  },
-  {
-    id: '4',
-    orderNumber: '#839180',
-    date: '20 Oct 2023, 02:15 PM',
-    amount: 95.0,
-    status: 'Unpaid',
-    method: 'Wallet',
-    txnId: 'TXN-99203115',
-  },
-  {
-    id: '5',
-    orderNumber: '#839175',
-    date: '21 Oct 2023, 04:30 PM',
-    amount: 120.0,
-    status: 'Pending',
-    method: 'System',
-    txnId: 'TXN-99203120',
-  },
-];
 
 const TABS: { id: TabType; icon: string; label: string }[] = [
   { id: 'All', icon: SVG_ICONS.fileIcon, label: 'All' },
-  { id: 'Pending', icon: SVG_ICONS.dollarIcon, label: 'Pending' },
-  { id: 'Generated', icon: SVG_ICONS.financeHistory, label: 'Generated' },
+  { id: 'UNPAID', icon: SVG_ICONS.dollarIcon, label: 'Pending' },
+  { id: 'PAID', icon: SVG_ICONS.financeHistory, label: 'Paid' },
 ];
 
 const InvoicesScreen = () => {
@@ -86,276 +45,203 @@ const InvoicesScreen = () => {
   const { colors, isDark } = useTheme();
   const styles = makeStyles(colors);
 
+  // Filter States
   const [activeTab, setActiveTab] = useState<TabType>('All');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('');
+  
+  // Data States
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const filteredInvoices = useMemo(() => {
-    if (activeTab === 'All') return INVOICE_DATA;
-    return INVOICE_DATA.filter(item => item.status === activeTab);
-  }, [activeTab]);
+  // Pagination & Loading States
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const totalSelectedAmount = useMemo(() => {
-    return INVOICE_DATA.filter(item => selectedIds.has(item.id)).reduce(
-      (sum, item) => sum + item.amount,
-      0,
-    );
-  }, [selectedIds]);
+  const fetchData = useCallback(
+    async (pageNum: number, isInitial = false) => {
+      if (loading) return;
+      setLoading(true);
 
-  const toggleSelection = (id: string) => {
-    const newSelection = new Set(selectedIds);
-    if (newSelection.has(id)) {
-      newSelection.delete(id);
-    } else {
-      newSelection.add(id);
+      try {
+        const response = await getInvoices(pageNum, activeTab, timeFilter);
+        const { data, total_pages } = response.results;
+
+        setTotalPages(total_pages);
+        setInvoices((prev) => (isInitial ? data : [...prev, ...data]));
+      } catch (error) {
+        Alert.alert('Error', 'Could not load invoices.');
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [activeTab, timeFilter]
+  );
+
+  // Trigger fetch on filter change
+  useEffect(() => {
+    setPage(1);
+    fetchData(1, true);
+  }, [activeTab, timeFilter]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    setPage(1);
+    fetchData(1, true);
+  };
+
+  const loadMore = () => {
+    // Only load more if we aren't loading and current page is less than total
+    if (!loading && page < totalPages) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      fetchData(nextPage, false);
     }
-    setSelectedIds(newSelection);
+  };
+
+  const handleDownload = async (url: string) => {
+    const supported = await Linking.canOpenURL(url);
+    if (supported) {
+      await Linking.openURL(url);
+    } else {
+      Alert.alert('Error', 'Unable to open invoice link');
+    }
   };
 
   const renderInvoiceCard = ({ item }: { item: Invoice }) => {
-    const isUnpaid = item.status === 'Unpaid' || item.status === 'Pending';
-    const isSelected = selectedIds.has(item.id);
-
+    const isPaid = item.status === 'PAID';
     return (
       <TouchableOpacity
-        activeOpacity={0.9}
-        onPress={() =>
-          isUnpaid ? toggleSelection(item.id) : setSelectedInvoice(item)
-        }
-        style={[styles.invoiceCard, isSelected && styles.selectedCard]}
+        activeOpacity={0.8}
+        onPress={() => setSelectedInvoice(item)}
+        style={styles.invoiceCard}
       >
         <View style={styles.cardHeader}>
-          {isUnpaid && (
-            <View
-              style={[styles.checkbox, isSelected && styles.checkboxActive]}
-            >
-              {isSelected && (
-                <Icon
-                  xml={SVG_ICONS.selectionTickIcon}
-                  size={16}
-                  color="white"
-                />
-              )}
-            </View>
-          )}
-
           <View style={styles.iconCircle}>
             <Icon xml={SVG_ICONS.fileIcon} size={22} color={colors.primary} />
           </View>
-
           <View style={styles.cardInfo}>
-            <Text style={styles.orderTitle}>Order {item.orderNumber}</Text>
+            <Text style={styles.orderTitle}>{item.invoice_number}</Text>
             <Text style={styles.cardDate}>{item.date}</Text>
           </View>
-
           <View style={styles.amountContainer}>
-            <Text style={styles.cardAmount}>AED {item.amount.toFixed(2)}</Text>
-            <View
-              style={[
-                styles.miniBadge,
-                {
-                  backgroundColor:
-                    item.status === 'Generated'
-                      ? `${colors.success}20`
-                      : `${colors.danger}20`,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.miniBadgeText,
-                  {
-                    color:
-                      item.status === 'Generated'
-                        ? colors.success
-                        : colors.danger,
-                  },
-                ]}
-              >
-                {item.status}
-              </Text>
+            <Text style={styles.cardAmount}>AED {item.amount}</Text>
+            <View style={[styles.statusBadge, { backgroundColor: isPaid ? `${colors.success}15` : `${colors.danger}15` }]}>
+              <Text style={[styles.statusText, { color: isPaid ? colors.success : colors.danger }]}>{item.status}</Text>
             </View>
           </View>
         </View>
-
-        <TouchableOpacity
-          style={styles.viewDetailsBtn}
-          onPress={() => setSelectedInvoice(item)}
-        >
-          <Text style={styles.viewDetailsText}>View Statement</Text>
-          <Icon xml={SVG_ICONS.arrowRight} size={18} color={colors.primary} />
-        </TouchableOpacity>
       </TouchableOpacity>
     );
   };
+
+
+  // Helper Components
+const FilterChip = ({ label, active, onPress }: any) => {
+  const { colors } = useTheme();
+  return (
+    <TouchableOpacity 
+      onPress={onPress}
+      style={[styles.chip, { backgroundColor: active ? colors.primary : colors.surface, borderColor: active ? colors.primary : colors.border }]}
+    >
+      <Text style={{ color: active ? 'white' : colors.text, fontSize: 12, fontWeight: '600' }}>{label}</Text>
+    </TouchableOpacity>
+  );
+};
+
+const DetailItem = ({ label, value }: any) => {
+    const { colors } = useTheme();
+    return (
+        <View style={styles.detailRow}>
+            <Text style={{ color: colors.textMuted }}>{label}</Text>
+            <Text style={{ color: colors.text, fontWeight: 'bold' }}>{value}</Text>
+        </View>
+    );
+};
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-      {/* Custom Nav Bar */}
+      {/* Header */}
       <View style={styles.navBar}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => NavigationService.goBack()}
-        >
+        <TouchableOpacity style={styles.backBtn} onPress={() => NavigationService.goBack()}>
           <Icon xml={SVG_ICONS.backIcon} size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.navTitle}>Statements</Text>
+        <Text style={styles.navTitle}>Invoices</Text>
         <View style={{ width: 45 }} />
       </View>
 
-      {/* Icon Tabs */}
+      {/* Time Filters */}
+      <View style={styles.timeFilterRow}>
+        <FilterChip 
+          label="This Month" 
+          active={timeFilter === 'this_month'} 
+          onPress={() => setTimeFilter(timeFilter === 'this_month' ? '' : 'this_month')} 
+        />
+        <FilterChip 
+          label="Last Month" 
+          active={timeFilter === 'last_month'} 
+          onPress={() => setTimeFilter(timeFilter === 'last_month' ? '' : 'last_month')} 
+        />
+      </View>
+
+      {/* Status Tabs */}
       <View style={styles.tabContainer}>
-        {TABS.map(tab => (
+        {TABS.map((tab) => (
           <TouchableOpacity
             key={tab.id}
             onPress={() => setActiveTab(tab.id)}
-            style={[
-              styles.tabItem,
-              activeTab === tab.id && styles.activeTabItem,
-            ]}
+            style={[styles.tabItem, activeTab === tab.id && styles.activeTabItem]}
           >
-            <View
-              style={[
-                styles.tabIconBg,
-                activeTab === tab.id && styles.activeIconBg,
-              ]}
-            >
-              <Icon
-                xml={tab.icon as any}
-                size={22}
-                color={activeTab === tab.id ? 'white' : colors.textMuted}
-              />
+            <View style={[styles.tabIconBg, activeTab === tab.id && styles.activeIconBg]}>
+              <Icon xml={tab.icon as any} size={22} color={activeTab === tab.id ? 'white' : colors.textMuted} />
             </View>
-            <Text
-              style={[
-                styles.tabLabel,
-                activeTab === tab.id && styles.activeTabLabel,
-              ]}
-            >
-              {tab.label}
-            </Text>
+            <Text style={[styles.tabLabel, activeTab === tab.id && styles.activeTabLabel]}>{tab.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
       <FlatList
-        data={filteredInvoices}
-        keyExtractor={item => item.id}
+        data={invoices}
+        keyExtractor={(item) => item.id}
         renderItem={renderInvoiceCard}
-        contentContainerStyle={[
-          styles.listContainer,
-          { paddingBottom: selectedIds.size > 0 ? 120 : 20 },
-        ]}
+        onRefresh={onRefresh}
+        refreshing={refreshing}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.4}
+        contentContainerStyle={styles.listContent}
+        ListFooterComponent={loading && page > 1 ? <ActivityIndicator color={colors.primary} style={{ margin: 20 }} /> : <View style={{ height: 100 }} />}
+        ListEmptyComponent={!loading ? <Text style={styles.emptyText}>No records found</Text> : null}
       />
 
-      {/* --- BOTTOM PAYMENT BAR --- */}
-      {selectedIds.size > 0 && (
-        <View
-          style={[styles.paymentBar, { paddingBottom: insets.bottom + 15 }]}
-        >
-          <View>
-            <Text style={styles.selectedCount}>
-              {selectedIds.size} Items Selected
-            </Text>
-            <Text style={styles.totalPayAmount}>
-              AED {totalSelectedAmount.toFixed(2)}
-            </Text>
-          </View>
-          <TouchableOpacity style={styles.payNowBtn}>
-            <Text style={styles.payNowText}>Pay Now</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* --- INVOICE DETAIL MODAL --- */}
-      <Modal visible={!!selectedInvoice} transparent animationType="fade">
+      {/* Detail Modal */}
+      <Modal visible={!!selectedInvoice} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.popupContainer}>
             <View style={styles.popupHeader}>
-              <Text style={styles.popupTitle}>Invoice Detail</Text>
+              <Text style={styles.popupTitle}>Invoice Details</Text>
               <TouchableOpacity onPress={() => setSelectedInvoice(null)}>
                 <Icon xml={SVG_ICONS.close} size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
-            <View style={styles.statusDisplay}>
-              <View
-                style={[
-                  styles.checkCircle,
-                  {
-                    backgroundColor:
-                      selectedInvoice?.status === 'Generated'
-                        ? colors.success
-                        : colors.danger,
-                  },
-                ]}
-              >
-                <Icon
-                  xml={
-                    selectedInvoice?.status === 'Generated'
-                      ? SVG_ICONS.selectionTickIcon
-                      : SVG_ICONS.close
-                  }
-                  size={32}
-                  color="white"
-                />
-              </View>
-              <Text style={styles.statusAmount}>
-                AED {selectedInvoice?.amount.toFixed(2)}
-              </Text>
-              <Text
-                style={[
-                  styles.statusSub,
-                  {
-                    color:
-                      selectedInvoice?.status === 'Generated'
-                        ? colors.success
-                        : colors.danger,
-                  },
-                ]}
-              >
-                {selectedInvoice?.status === 'Generated'
-                  ? 'Statement Generated'
-                  : 'Pending Payment'}
-              </Text>
+            
+            <View style={styles.modalBody}>
+                <DetailItem label="Invoice Number" value={selectedInvoice?.invoice_number} />
+                <DetailItem label="Order Reference" value={selectedInvoice?.order_ref} />
+                <DetailItem label="Date" value={selectedInvoice?.date} />
+                <DetailItem label="Amount" value={`AED ${selectedInvoice?.amount}`} />
             </View>
-            <View style={styles.detailTable}>
-              <View style={styles.tableRow}>
-                <Text style={styles.rowLabel}>Order No</Text>
-                <Text style={styles.rowValue}>
-                  {selectedInvoice?.orderNumber}
-                </Text>
-              </View>
-              <View style={styles.tableRow}>
-                <Text style={styles.rowLabel}>Date</Text>
-                <Text style={styles.rowValue}>{selectedInvoice?.date}</Text>
-              </View>
-              <View style={styles.tableRow}>
-                <Text style={styles.rowLabel}>Method</Text>
-                <Text style={styles.rowValue}>{selectedInvoice?.method}</Text>
-              </View>
-              <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
-                <Text style={styles.rowLabel}>TXN ID</Text>
-                <Text style={styles.rowValue}>{selectedInvoice?.txnId}</Text>
-              </View>
-            </View>
-            <View style={styles.popupFooter}>
-              <TouchableOpacity style={styles.downloadBtn}>
-                <Icon xml={SVG_ICONS.downloadIcon} size={20} color="white" />
-                <Text style={styles.btnText}>Download</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.shareBtn}>
-                <Icon
-                  xml={SVG_ICONS.shareIcon}
-                  size={20}
-                  color={colors.primary}
-                />
-                <Text style={[styles.btnText, { color: colors.primary }]}>
-                  Share
-                </Text>
-              </TouchableOpacity>
-            </View>
+
+            <TouchableOpacity 
+              style={styles.downloadBtn} 
+              onPress={() => selectedInvoice && handleDownload(selectedInvoice.pdf_url)}
+            >
+              <Icon xml={SVG_ICONS.downloadIcon} size={20} color="white" />
+              <Text style={styles.downloadText}>Download Invoice</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -366,203 +252,37 @@ const InvoicesScreen = () => {
 const makeStyles = (colors: any) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    navBar: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: 16,
-    },
-    backBtn: {
-      width: 42,
-      height: 42,
-      borderRadius: 21,
-      backgroundColor: colors.surface,
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    navTitle: { color: colors.text, fontSize: 20, fontWeight: 'bold' },
-    tabContainer: {
-      flexDirection: 'row',
-      justifyContent: 'space-around',
-      marginVertical: 15,
-    },
+    navBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
+    backBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+    navTitle: { color: colors.text, fontSize: 18, fontWeight: 'bold' },
+    timeFilterRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 10, marginBottom: 10 },
+    chip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+    tabContainer: { flexDirection: 'row', justifyContent: 'space-around', marginVertical: 10 },
     tabItem: { alignItems: 'center', width: '28%' },
-    tabIconBg: {
-      width: 54,
-      height: 54,
-      borderRadius: 18,
-      backgroundColor: colors.surface,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: 8,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    activeIconBg: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
-    },
-    tabLabel: { color: colors.textMuted, fontSize: 12, fontWeight: 'bold' },
+    tabIconBg: { width: 50, height: 50, borderRadius: 15, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center', marginBottom: 5, borderWidth: 1, borderColor: colors.border },
+    activeIconBg: { backgroundColor: colors.primary, borderColor: colors.primary },
+    tabLabel: { color: colors.textMuted, fontSize: 11, fontWeight: 'bold' },
     activeTabLabel: { color: colors.text },
-    listContainer: { padding: 16 },
-    invoiceCard: {
-      backgroundColor: colors.surface,
-      borderRadius: 24,
-      padding: 16,
-      marginBottom: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    selectedCard: {
-      borderColor: colors.primary,
-      backgroundColor: `${colors.primary}10`,
-    },
+    listContent: { padding: 16 },
+    invoiceCard: { backgroundColor: colors.surface, borderRadius: 20, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border },
     cardHeader: { flexDirection: 'row', alignItems: 'center' },
-    checkbox: {
-      width: 22,
-      height: 22,
-      borderRadius: 6,
-      borderWidth: 2,
-      borderColor: colors.border,
-      marginRight: 12,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    checkboxActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
-    },
-    iconCircle: {
-      width: 44,
-      height: 44,
-      borderRadius: 12,
-      backgroundColor: colors.surfaceVariant,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
+    iconCircle: { width: 40, height: 40, borderRadius: 10, backgroundColor: colors.surfaceVariant, justifyContent: 'center', alignItems: 'center' },
     cardInfo: { flex: 1, marginLeft: 12 },
-    orderTitle: { color: colors.text, fontSize: 15, fontWeight: 'bold' },
-    cardDate: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
+    orderTitle: { color: colors.text, fontSize: 14, fontWeight: 'bold' },
+    cardDate: { color: colors.textMuted, fontSize: 12 },
     amountContainer: { alignItems: 'flex-end' },
-    cardAmount: { color: colors.text, fontSize: 15, fontWeight: 'bold' },
-    miniBadge: {
-      paddingHorizontal: 6,
-      paddingVertical: 2,
-      borderRadius: 4,
-      marginTop: 4,
-    },
-    miniBadgeText: { fontSize: 10, fontWeight: 'bold' },
-    viewDetailsBtn: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginTop: 15,
-      paddingTop: 15,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-    },
-    viewDetailsText: {
-      color: colors.primary,
-      fontWeight: 'bold',
-      fontSize: 13,
-    },
-    paymentBar: {
-      position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      backgroundColor: colors.surface,
-      padding: 20,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-    },
-    selectedCount: {
-      color: colors.textMuted,
-      fontSize: 12,
-      fontWeight: 'bold',
-    },
-    totalPayAmount: { color: colors.text, fontSize: 22, fontWeight: '900' },
-    payNowBtn: {
-      backgroundColor: colors.primary,
-      paddingHorizontal: 30,
-      paddingVertical: 14,
-      borderRadius: 16,
-    },
-    payNowText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.7)',
-      justifyContent: 'center',
-      padding: 20,
-    },
-    popupContainer: {
-      backgroundColor: colors.surface,
-      borderRadius: 32,
-      padding: 24,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    popupHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
+    cardAmount: { color: colors.text, fontSize: 14, fontWeight: 'bold' },
+    statusBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 5, marginTop: 4 },
+    statusText: { fontSize: 10, fontWeight: 'bold' },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    popupContainer: { backgroundColor: colors.surface, borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 24, paddingBottom: 40 },
+    popupHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
     popupTitle: { color: colors.text, fontSize: 18, fontWeight: 'bold' },
-    statusDisplay: { alignItems: 'center', marginVertical: 30 },
-    checkCircle: {
-      width: 60,
-      height: 60,
-      borderRadius: 30,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: 15,
-    },
-    statusAmount: { color: colors.text, fontSize: 32, fontWeight: '900' },
-    statusSub: { fontSize: 14, fontWeight: 'bold', marginTop: 5 },
-    detailTable: {
-      backgroundColor: colors.background,
-      borderRadius: 20,
-      padding: 16,
-    },
-    tableRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      paddingVertical: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    rowLabel: { color: colors.textMuted, fontSize: 13 },
-    rowValue: { color: colors.text, fontWeight: 'bold', fontSize: 13 },
-    popupFooter: { flexDirection: 'row', gap: 10, marginTop: 25 },
-    downloadBtn: {
-      flex: 1,
-      height: 50,
-      backgroundColor: colors.primary,
-      borderRadius: 14,
-      flexDirection: 'row',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    shareBtn: {
-      flex: 1,
-      height: 50,
-      backgroundColor: colors.text,
-      borderRadius: 14,
-      flexDirection: 'row',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    btnText: {
-      color: colors.isDark ? 'white' : colors.background,
-      fontWeight: 'bold',
-      marginLeft: 8,
-    },
+    modalBody: { gap: 15, marginBottom: 30 },
+    detailRow: { flexDirection: 'row', justifyContent: 'space-between' },
+    downloadBtn: { backgroundColor: colors.primary, height: 55, borderRadius: 15, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 },
+    downloadText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+    emptyText: { textAlign: 'center', marginTop: 50, color: colors.textMuted },
   });
 
 export default InvoicesScreen;

@@ -6,7 +6,9 @@ import CategoryProductListing from '../screens/categoryProductListingScreen/Cate
 
 export type CategoryStackParamList = {
   Categories: undefined;
-  SubCategories: { params?: any };
+  SubCategories: { categoryId: string,
+    title: string,
+    subCategories: string};
   CategoryProductListing: { params?: any };
 };
 

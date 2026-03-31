@@ -1,13 +1,17 @@
 import React from 'react';
-import {
-  View,
-  Text,
-} from 'react-native';
-import { registrationStyles } from '../styles';
+import { View, Text } from 'react-native';
+import { makeStyles } from '../styles';
+import { useTheme } from '../../../../ThemeContext';
 
-const StepIndicator: React.FC<{ currentStep: number }> = ({ currentStep }) => {
+interface StepIndicatorProps {
+  currentStep: number;
+  rejectedSteps?: number[];
+}
 
-    const styles= registrationStyles;
+const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, rejectedSteps = [] }) => {
+  const { colors, isDark } = useTheme();
+  const styles = makeStyles(colors, isDark);
+
   const steps = [
     { number: 1, label: 'BUSINESS', sublabel: 'DETAILS' },
     { number: 2, label: 'ADD', sublabel: 'CONTACTS' },
@@ -18,50 +22,54 @@ const StepIndicator: React.FC<{ currentStep: number }> = ({ currentStep }) => {
 
   return (
     <View style={styles.stepContainer}>
-      {steps.map(step => (
-        <View key={step.number} style={styles.stepItem}>
-          <View
-            style={[
-              styles.stepCircle,
-              currentStep === step.number && styles.stepActive,
-              currentStep > step.number && styles.stepCompleted,
-            ]}
-          >
-            {currentStep > step.number ? (
-              <Text style={styles.checkmark}>✓</Text>
-            ) : (
-              <Text
-                style={[
-                  styles.stepNumber,
-                  currentStep === step.number && styles.stepNumberActive,
-                ]}
-              >
-                {step.number}
-              </Text>
-            )}
+      {steps.map(step => {
+        const isRejected = rejectedSteps.includes(step.number);
+        const isActive = currentStep === step.number;
+        const isCompleted = currentStep > step.number && !isRejected;
+
+        return (
+          <View key={step.number} style={styles.stepItem}>
+            <View
+              style={[
+                styles.stepCircle,
+                isActive && styles.stepActive,
+                isCompleted && styles.stepCompleted,
+                isRejected && styles.stepRejected,
+              ]}
+            >
+              {isRejected ? (
+                <Text style={styles.stepRejectedIcon}>✕</Text>
+              ) : isCompleted ? (
+                <Text style={styles.checkmark}>✓</Text>
+              ) : (
+                <Text style={[styles.stepNumber, isActive && styles.stepNumberActive]}>
+                  {step.number}
+                </Text>
+              )}
+            </View>
+            <Text
+              style={[
+                styles.stepLabel,
+                isActive && styles.stepLabelActive,
+                isRejected && styles.stepLabelRejected,
+              ]}
+            >
+              {step.label}
+            </Text>
+            <Text
+              style={[
+                styles.stepSublabel,
+                isActive && styles.stepSublabelActive,
+                isRejected && styles.stepSublabelRejected,
+              ]}
+            >
+              {step.sublabel}
+            </Text>
           </View>
-          <Text
-            style={[
-              styles.stepLabel,
-              currentStep === step.number && styles.stepLabelActive,
-            ]}
-          >
-            {step.label}
-          </Text>
-          <Text
-            style={[
-              styles.stepSublabel,
-              currentStep === step.number && styles.stepSublabelActive,
-            ]}
-          >
-            {step.sublabel}
-          </Text>
-        </View>
-      ))}
+        );
+      })}
     </View>
   );
 };
-
-
 
 export default StepIndicator;

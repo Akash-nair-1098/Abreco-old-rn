@@ -5,6 +5,7 @@ export const colors = {
     indigo: '#6366F1',
     amber: '#F59E0B',
     slate500: '#64748B',
+    primaryRed:"#FC0808"
   },
   light: {
     background: '#F8FAFC',
