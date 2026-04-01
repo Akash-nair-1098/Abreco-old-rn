@@ -39,6 +39,7 @@ export const VoiceSearchScreen = ({ route }: any) => {
     try {
       const response = await globalSearchProducts(term);
       setData(response || []);
+      console.log('response is', response)
     } catch (error) {
       console.error('Global search failed:', error);
     } finally {
@@ -50,10 +51,10 @@ export const VoiceSearchScreen = ({ route }: any) => {
     <View
       style={[
         styles.container,
-        {
-          paddingTop: insets.top,
-          paddingBottom: insets.bottom,
-        },
+        // {
+        //   paddingTop: insets.top,
+        //   paddingBottom: insets.bottom,
+        // },
       ]}
     >
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
@@ -70,7 +71,7 @@ export const VoiceSearchScreen = ({ route }: any) => {
 
         <View style={styles.headerTitleContainer}>
           <Text style={styles.title} numberOfLines={1}>
-            {t('results_for', { term: term })}
+            {`${t('results_for')} ${term.toUpperCase()} `}
           </Text>
           {loading ? (
             <ActivityIndicator
@@ -80,7 +81,7 @@ export const VoiceSearchScreen = ({ route }: any) => {
             />
           ) : (
             <Text style={styles.count}>
-               {t('items_found', { count: data.length })}
+               {`${t('items_found')} ${data.length}`}
             </Text>
           )}
         </View>

@@ -8,6 +8,7 @@ import {
   Pressable,
   ActivityIndicator,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import Icon from '../../Icon';
@@ -18,17 +19,21 @@ import { useCartStore } from '../store/useCartStore';
 import { useToast } from './ToastContext';
 import i18n from '../utilities/i18n';
 
+// To calculate half screen accurately
+const { width } = Dimensions.get('window');
+const HALF_SCREEN = (width - 40) / 2; // Adjusted for common grid padding
+
 interface ProductCardProps {
   item: any;
   viewType?: 'default' | 'wishlist';
   onRemove?: (item: any) => void;
   onMoveToCart?: (item: any) => void;
   cardWidth?: number | string;
-  isFlashDeal?: boolean; // New prop to toggle Flash Deal UI
+  isFlashDeal?: boolean; 
 }
 
 const PLACEHOLDER_IMAGES = [
-  'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&q=80',
+  'https://t3.ftcdn.net/jpg/06/71/33/46/360_F_671334604_ZBV26w9fERX8FCLUyDrCrLrZG6bq7h0Q.jpg',
 ];
 
 const ProductCardComponent = ({
@@ -36,7 +41,7 @@ const ProductCardComponent = ({
   viewType = 'default',
   onRemove,
   onMoveToCart,
-  cardWidth = '100%',
+  cardWidth, // Removed default here to handle logic inside
   isFlashDeal = false,
 }: ProductCardProps) => {
   const { colors, isDark } = useTheme();
@@ -82,16 +87,18 @@ const ProductCardComponent = ({
     }
   };
 
-  // Logic to pick the first URL from the API response
-  const imageUri = item?.image_urls?.[0]?.url ?? item?.primary_image_url ?? item?.product_image ?? PLACEHOLDER_IMAGES[0];
+  const imageUri = item?.image_urls?.[0]?.url ?? item?.primary_image_url ?? item?.product_image ?? item?.image1 ?? PLACEHOLDER_IMAGES[0];
   const displayPrice = item?.offer_price ?? item?.sale_price ?? item?.price;
   const originalPrice = item?.purchase_price ?? item?.original_price;
   const discount = parseFloat(item?.discount_percentage || '0');
 
+  // Logic: Use passed cardWidth, otherwise default to half screen for grids
+  const finalWidth = cardWidth || HALF_SCREEN;
+
   return (
     <Pressable
       onPress={() => NavigationService.navigate('ProductDetails', { id: productId })}
-      style={[styles.cardContainer, { width: cardWidth }]}
+      style={[styles.cardContainer, { width: finalWidth }]}
     >
       <View style={styles.imageWrapper}>
         <Image source={{ uri: imageUri }} style={styles.productImage} />
@@ -149,10 +156,13 @@ const makeStyles = (colors: any, isDark: boolean) =>
     cardContainer: {
       borderRadius: 20,
       padding: 10,
-      marginRight: 12,
+      marginBottom: 12, // Added margin bottom for grid consistency
+      marginRight: 8,   // Reduced margin right to fit half-screen better
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
+      // Ensures the card doesn't stretch even if data is missing
+      alignSelf: 'flex-start', 
     },
     imageWrapper: { 
       backgroundColor: '#F9FAFB', 
