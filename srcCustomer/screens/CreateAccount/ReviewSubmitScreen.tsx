@@ -19,11 +19,17 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from '../../../Icon';
 import { SVG_ICONS } from '../../assets/icons/svg';
-import { fetchSavedRegistrationData } from '../../api/auth/authApi';
+import {
+  fetchSavedRegistrationData,
+  submitCustomerInfo,
+} from '../../api/auth/authApi';
+import { useToast } from '../../components/ToastContext';
+import { getApiErrorMessage } from '../../utilities/apiErrorMessage';
 
 export const ReviewSubmitScreen = ({ route }: any) => {
   const { params } = route;
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
+  const { showToast } = useToast();
   
   // Theme Integration
   const { colors, isDark } = useTheme();
@@ -36,10 +42,10 @@ export const ReviewSubmitScreen = ({ route }: any) => {
 
 
     useEffect(() => {
-      loadSavedData();
+      loadSavedData(1);
     }, []);
 
-    const loadSavedData = async () => {
+    const loadSavedData = async (step: number) => {
         try {
           if (params?.user_id) {
             const response = await fetchSavedRegistrationData(params.user_id);
@@ -47,6 +53,9 @@ export const ReviewSubmitScreen = ({ route }: any) => {
             console.log('saved dta ais', data)
     
             setApplicationId(data?.application_id);
+            if (step === 2) {
+              setSubmitted(true);
+            }
           }
         } catch {
          console.log('error occured')
@@ -58,12 +67,21 @@ export const ReviewSubmitScreen = ({ route }: any) => {
   const handleFinalSubmit = async () => {
     setLoading(true);
     try {
-      // Simulating successful final submission
-      setTimeout(() => { 
-        setSubmitted(true);
-        setLoading(false);
-      }, 1500);
-    } catch (error) {
+      await submitCustomerInfo({
+        secret_token: params?.secret_token ?? '',
+        user_id: params?.user_id ?? '',
+      }).then((data) => {
+        // console.log('data is', data)
+        loadSavedData(2);
+      });
+      // const id = data?.id ?? data?.application_id ?? '';
+      // if (id) setApplicationId(String(id));
+    } catch (error: any) {
+      showToast(
+        getApiErrorMessage(error, 'Submission failed. Please try again.'),
+        'error',
+      );
+    } finally {
       setLoading(false);
     }
   };

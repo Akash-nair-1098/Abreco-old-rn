@@ -11,6 +11,8 @@ interface PromoCarouselProps {
 }
 
 const PromoCarousel = ({ data }: PromoCarouselProps) => {
+
+  console.log('banner data----', data);
   const [activeIndex, setActiveIndex] = useState(0);
   const { colors, isDark } = useTheme();
   const styles = makeStyles(colors, isDark);

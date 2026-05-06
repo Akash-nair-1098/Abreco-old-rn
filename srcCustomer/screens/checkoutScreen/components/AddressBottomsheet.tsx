@@ -23,6 +23,9 @@ import { useAddressStore } from '../../../store/useAddressStore';
 import { SCREEN_HEIGHT } from '../../../utilities/dimensions';
 import { useTheme } from '../../../../ThemeContext';
 import { GOOGLE_MAPS_API_KEY } from '@env';
+import AddressPlacesField from '../../../components/AddressPlacesField';
+import { geocodeAddressLine } from '../../../utilities/googlePlaces';
+import { getApiErrorMessage } from '../../../utilities/apiErrorMessage';
 
 const AddressBottomSheet = ({
   visible,
@@ -90,7 +93,7 @@ const AddressBottomSheet = ({
     }
   };
 
-  const validate = () => {
+  const validate = (lat?: string | null, lng?: string | null) => {
     let valid = true;
     let newErrors: any = {};
 
@@ -102,8 +105,9 @@ const AddressBottomSheet = ({
       newErrors.address = 'Please provide full address details';
       valid = false;
     }
-    if (!coords) {
-      newErrors.location = 'Location coordinates are mandatory for delivery';
+    if (!lat || !lng) {
+      newErrors.location =
+        'Could not resolve map location. Pick a suggestion, use current location, or check the address.';
       valid = false;
     }
 
@@ -112,22 +116,31 @@ const AddressBottomSheet = ({
   };
 
   const handleSave = async () => {
-    if (!validate()) return;
+    let lat = coords?.lat;
+    let lng = coords?.lng;
+    if ((!lat || !lng) && fullAddress.trim()) {
+      const geo = await geocodeAddressLine(fullAddress);
+      if (geo) {
+        lat = geo.lat;
+        lng = geo.lng;
+        setCoords({ lat, lng });
+      }
+    }
+    if (!validate(lat, lng)) return;
 
     try {
       const newAddressFromServer = await addAddress(
         label,
         fullAddress,
-        coords!.lat,
-        coords!.lng
+        lat!,
+        lng!,
       );
       showToast('Address saved successfully', 'success');
       onSelect(newAddressFromServer);
       resetForm();
       onClose();
     } catch (error: any) {
-      const msg = error.response?.data?.detail || 'Could not save address.';
-      showToast(msg, 'error');
+      showToast(getApiErrorMessage(error, 'Could not save address.'), 'error');
     }
   };
 
@@ -187,18 +200,23 @@ const AddressBottomSheet = ({
                 }
               />
             ) : (
-              <ScrollView showsVerticalScrollIndicator={false}>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="always"
+                nestedScrollEnabled
+                removeClippedSubviews={false}
+                keyboardDismissMode="on-drag">
                 <View style={styles.formContainer}>
-                  <View style={styles.infoBox}>
-                    <Icon xml={SVG_ICONS.infoCircle} size={18} color={colors.primary} />
+                  {/* <View style={styles.infoBox}>
+                    <Icon xml={SVG_ICONS.infoIcon} size={18} color={colors.primary} />
                     <Text style={styles.infoBoxText}>
                       Please add this address from the place where you want the product to be delivered.
                     </Text>
-                  </View>
+                  </View> */}
 
                   <Text style={styles.inputLabel}>LOCATION LABEL</Text>
                   <TextInput
-                    style={[styles.input, errors.label && styles.inputError]}
+                    style={[styles.input, errors.label ? styles.inputError : undefined]}
                     placeholder="E.g., Home, Shop, Branch 2"
                     placeholderTextColor={colors.textMuted}
                     value={label}
@@ -209,20 +227,22 @@ const AddressBottomSheet = ({
                   />
                   {errors.label && <Text style={styles.errorText}>{errors.label}</Text>}
 
-                  <Text style={styles.inputLabel}>FULL ADDRESS</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea, errors.address && styles.inputError]}
-                    placeholder="House No, Street, Landmark..."
-                    placeholderTextColor={colors.textMuted}
-                    multiline
-                    numberOfLines={4}
+                  <AddressPlacesField
+                    label="FULL ADDRESS"
                     value={fullAddress}
-                    onChangeText={(val) => {
-                        setFullAddress(val);
-                        if(val) setErrors(p => ({...p, address: undefined}));
+                    onChangeText={val => {
+                      setFullAddress(val);
+                      setCoords(null);
+                      if (val) setErrors(p => ({ ...p, address: undefined, location: undefined }));
                     }}
+                    onPlaceResolved={(address, la, ln) => {
+                      setFullAddress(address);
+                      if (la && ln) setCoords({ lat: la, lng: ln });
+                      setErrors(p => ({ ...p, address: undefined, location: undefined }));
+                    }}
+                    placeholder="Type address or pick from suggestions…"
+                    error={errors.address}
                   />
-                  {errors.address && <Text style={styles.errorText}>{errors.address}</Text>}
 
                   <TouchableOpacity
                     style={styles.locationButton}
@@ -288,7 +308,7 @@ const makeStyles = (colors: any) =>
     addrStreet: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
     addNewBtn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 18, borderRadius: 20, borderStyle: 'dashed', borderWidth: 1.5, borderColor: colors.primary, marginTop: 8 },
     addNewText: { color: colors.text, marginLeft: 10, fontWeight: '700', fontSize: 16 },
-    formContainer: { marginTop: 10 },
+    formContainer: { marginTop: 10, paddingBottom: 5 },
     infoBox: { backgroundColor: colors.primary + '15', padding: 12, borderRadius: 12, flexDirection: 'row', gap: 10, marginBottom: 20, alignItems: 'center' },
     infoBoxText: { color: colors.primary, fontSize: 13, fontWeight: '600', flex: 1 },
     inputLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '800', marginBottom: 8, letterSpacing: 0.5 },

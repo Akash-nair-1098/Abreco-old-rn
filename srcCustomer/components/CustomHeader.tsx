@@ -11,7 +11,12 @@ import {
   FlatList,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import {
+  useNavigation,
+  useFocusEffect,
+  useIsFocused,
+  useNavigationState,
+} from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import Icon from '../../Icon';
 import { SVG_ICONS } from '../assets/icons/svg';
@@ -21,6 +26,9 @@ import { useSearchStore } from '../store/useSearchStore';
 import { useTheme } from '../../ThemeContext';
 import Voice, { SpeechResultsEvent } from '@react-native-voice/voice';
 import i18n from '../utilities/i18n';
+import { globalSearchProducts } from '../api/products/productsApi';
+import { getVoiceLocaleForAppLanguage } from '../utilities/voiceLocale';
+import { useVoiceEpochStore } from '../store/useVoiceEpochStore';
 
 const LANGUAGES = [
   { code: 'en', label: 'English' },
@@ -31,14 +39,23 @@ const LANGUAGES = [
   { code: 'zh-CN', label: '中文' },
 ];
 
-const CustomHeader = ({ title }: { title: string }) => {
+const CustomHeader = ({
+  title: _title,
+  hideSearchBar = false,
+}: {
+  title: string;
+  hideSearchBar?: boolean;
+}) => {
   const { t } = useTranslation();
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
+  const isFocused = useIsFocused();
+  const voiceListeningEpoch = useVoiceEpochStore(s => s.epoch);
 
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const localTranscriptRef = useRef('');
+  const hasSearchedFromVoiceRef = useRef(false);
 
   const [isSheetVisible, setSheetVisible] = useState(false);
   const [isLangSheetVisible, setLangSheetVisible] = useState(false);
@@ -51,16 +68,6 @@ const CustomHeader = ({ title }: { title: string }) => {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const styles = headerStyles(colors, isDark);
   const voiceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  useFocusEffect(
-    useCallback(() => {
-      return () => {
-        setLocalInput('');
-        setSearchText('');
-        stopAndCleanupVoice();
-      };
-    }, [])
-  );
 
   useEffect(() => {
     setLocalInput(searchText);
@@ -79,78 +86,169 @@ const CustomHeader = ({ title }: { title: string }) => {
     }
   }, [isListening]);
 
-  const stopAndCleanupVoice = async () => {
+  /** Release mic without tearing down native engine (FAB may take over briefly). */
+  const detachHeaderVoice = useCallback(async () => {
+    if (voiceTimeoutRef.current) clearTimeout(voiceTimeoutRef.current);
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+    try {
+      await Voice.stop();
+      await Voice.cancel();
+    } catch {
+      /* empty */
+    } finally {
+      Voice.removeAllListeners();
+      setIsListening(false);
+    }
+  }, []);
+
+  const currentRouteName = useNavigationState(state => {
+    const route = state.routes[state.index];
+    // Handle nested navigators
+    if (route.state) {
+      const nestedRoute = route.state.routes[route.state.index ?? 0];
+      return nestedRoute?.name;
+    }
+    return route.name;
+  });
+
+  /** Session end / error — resets native Voice so future starts succeed. */
+  const stopMicSessionHard = useCallback(async () => {
     if (voiceTimeoutRef.current) clearTimeout(voiceTimeoutRef.current);
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     try {
       await Voice.stop();
       await Voice.destroy();
-    } catch (e) {
-      // Catching potential destroy errors
+    } catch {
+      /* empty */
     } finally {
+      Voice.removeAllListeners();
       setIsListening(false);
     }
-  };
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setLocalInput('');
+        setSearchText('');
+        void detachHeaderVoice();
+      };
+    }, [detachHeaderVoice, setSearchText]),
+  );
+
+  const handleSearchSubmit = useCallback(
+    async (textToSearch?: string, localFallback?: string) => {
+      const finalQuery = (textToSearch ?? localFallback ?? '')
+        .normalize('NFC')
+        .replace(/\s+/g, ' ')
+        .trim();
+      setSearchText(finalQuery);
+      if (!finalQuery) return;
+
+      if (!hideSearchBar) {
+        try {
+          const results = await globalSearchProducts(finalQuery);
+          navigation.navigate('SearchStack', {
+            screen: 'VoiceSearchScreen',
+            params: {
+              results: results || [],
+              term: finalQuery,
+              isGlobalSearch: results?.length === 0,
+            },
+          });
+        } catch {
+          navigation.navigate('SearchStack', {
+            screen: 'VoiceSearchScreen',
+            params: {
+              results: [],
+              term: finalQuery,
+              isGlobalSearch: true,
+            },
+          });
+        }
+      }
+    },
+    [hideSearchBar, navigation, setSearchText],
+  );
+
+  const handleSearchSubmitRef = useRef(handleSearchSubmit);
+  handleSearchSubmitRef.current = handleSearchSubmit;
 
   useEffect(() => {
+    if (!isFocused || hideSearchBar) {
+      detachHeaderVoice();
+      return undefined;
+    }
+
     Voice.onSpeechStart = () => {
       setIsListening(true);
       localTranscriptRef.current = '';
       setLocalInput('');
+      hasSearchedFromVoiceRef.current = false;
       if (voiceTimeoutRef.current) clearTimeout(voiceTimeoutRef.current);
       voiceTimeoutRef.current = setTimeout(() => {
-        stopAndCleanupVoice();
+        void stopMicSessionHard();
       }, 15000);
     };
 
     Voice.onSpeechPartialResults = (e: SpeechResultsEvent) => {
       if (e.value && e.value.length > 0) {
-        const newText = e.value[0];
+        const newText = e.value[e.value.length - 1];
         setLocalInput(newText);
         localTranscriptRef.current = newText;
         if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = setTimeout(() => {
-          handleSearchSubmit(localTranscriptRef.current);
-          stopAndCleanupVoice();
-        }, 2500);
+          if (!hasSearchedFromVoiceRef.current) {
+            hasSearchedFromVoiceRef.current = true;
+            void handleSearchSubmitRef.current(localTranscriptRef.current);
+          }
+          void stopMicSessionHard();
+        }, 4000);
       }
     };
 
-    Voice.onSpeechError = e => {
-      stopAndCleanupVoice();
+    Voice.onSpeechResults = (e: SpeechResultsEvent) => {
+      if (e.value && e.value.length > 0 && !hasSearchedFromVoiceRef.current) {
+        const finalText = e.value[0];
+        setLocalInput(finalText);
+        localTranscriptRef.current = finalText;
+        hasSearchedFromVoiceRef.current = true;
+        void handleSearchSubmitRef.current(finalText);
+      }
+    };
+
+    Voice.onSpeechError = () => {
+      void stopMicSessionHard();
     };
 
     return () => {
-      if (voiceTimeoutRef.current) clearTimeout(voiceTimeoutRef.current);
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-      Voice.destroy().then(Voice.removeAllListeners);
+      void detachHeaderVoice();
     };
-  }, []);
+  }, [detachHeaderVoice, hideSearchBar, isFocused, stopMicSessionHard, voiceListeningEpoch]);
 
   const toggleVoiceSearch = async () => {
     try {
       if (isListening) {
-        await stopAndCleanupVoice();
+        await stopMicSessionHard();
       } else {
         await Voice.destroy();
+        Voice.removeAllListeners();
         setLocalInput('');
         setSearchText('');
         setIsListening(true);
 
-        const localeMap: any = {
-          en: 'en-US', ar: 'ar-SA', hi: 'hi-IN', ml: 'ml-IN', es: 'es-ES', 'zh-CN': 'zh-CN',
-        };
-        const currentLocale = localeMap[i18n.language] || 'en-US';
+        const currentLocale = getVoiceLocaleForAppLanguage(i18n.language);
         await Voice.start(currentLocale);
       }
-    } catch (e) {
+    } catch {
       setIsListening(false);
     }
   };
 
-  const handleSearchSubmit = (textToSearch?: string) => {
-    const finalQuery = (textToSearch || localInput).trim();
-    setSearchText(finalQuery);
+  const handleBarcodeScan = () => {
+    navigation.navigate('SearchStack', {
+      screen: 'BarcodeSearchScreen',
+    });
   };
 
   const clearSearch = () => {
@@ -198,45 +296,51 @@ const CustomHeader = ({ title }: { title: string }) => {
         </View>
       </View>
 
-      <View style={styles.searchSection}>
-        <Icon xml={SVG_ICONS.searchLens} color={colors.textMuted} size={18} />
-        <TextInput
-          style={styles.input}
-          placeholder={isListening ? t('listening') : t('search_placeholder')}
-          placeholderTextColor={isListening ? colors.primary : colors.textMuted}
-          value={localInput}
-          numberOfLines={1}
-          onChangeText={setLocalInput}
-          editable={!isListening}
-          returnKeyType="search"
-          onBlur={() => handleSearchSubmit()}
-          onSubmitEditing={() => handleSearchSubmit()}
-        />
+      {!hideSearchBar && (
+        <View style={styles.searchSection}>
+          <Icon xml={SVG_ICONS.searchLens} color={colors.textMuted} size={18} />
+          <TextInput
+            style={styles.input}
+            placeholder={isListening ? t('listening') : t('search_placeholder')}
+            placeholderTextColor={isListening ? colors.primary : colors.textMuted}
+            value={localInput}
+            numberOfLines={1}
+            onChangeText={setLocalInput}
+            editable={!isListening}
+            returnKeyType="search"
+            onBlur={() => handleSearchSubmit(undefined, localInput)}
+            onSubmitEditing={() => handleSearchSubmit(undefined, localInput)}
+          />
 
-        {localInput.length > 0 && !isListening && (
-          <Pressable style={{ paddingHorizontal: 8 }} onPress={clearSearch}>
-            <Icon xml={SVG_ICONS.closeIcon} size={18} color={colors.textMuted} />
-          </Pressable>
-        )}
-
-        <TouchableOpacity onPress={toggleVoiceSearch} style={styles.micButton}>
-          {isListening && (
-            <Animated.View
-              style={[
-                styles.pulseCircle,
-                {
-                  transform: [{ scale: pulseAnim }],
-                  opacity: pulseAnim.interpolate({
-                    inputRange: [1, 1.5],
-                    outputRange: [0.5, 0],
-                  }),
-                },
-              ]}
-            />
+          {localInput.length > 0 && !isListening && (
+            <Pressable style={{ paddingHorizontal: 8 }} onPress={clearSearch}>
+              <Icon xml={SVG_ICONS.closeIcon} size={18} color={colors.textMuted} />
+            </Pressable>
           )}
-          <Icon xml={SVG_ICONS.micIcon} color={isListening ? colors.primary : colors.textMuted} size={22} />
-        </TouchableOpacity>
-      </View>
+
+          <TouchableOpacity onPress={handleBarcodeScan} style={styles.searchActionButton}>
+            <Icon xml={SVG_ICONS.barcodeScan} color={colors.textMuted} size={18} />
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={toggleVoiceSearch} style={styles.micButton}>
+            {isListening && (
+              <Animated.View
+                style={[
+                  styles.pulseCircle,
+                  {
+                    transform: [{ scale: pulseAnim }],
+                    opacity: pulseAnim.interpolate({
+                      inputRange: [1, 1.5],
+                      outputRange: [0.5, 0],
+                    }),
+                  },
+                ]}
+              />
+            )}
+            <Icon xml={SVG_ICONS.micIcon} color={isListening ? colors.primary : colors.textMuted} size={22} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Language Selection Bottom Sheet */}
       <Modal
@@ -301,6 +405,7 @@ const headerStyles = (colors: any, isDark: boolean) =>
     iconButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.border },
     searchSection: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 12, paddingHorizontal: 12, height: 48, borderWidth: isDark ? 0 : 1, borderColor: colors.border },
     input: { flex: 1, color: colors.text, fontSize: 15, marginLeft: 10, height: '100%' },
+    searchActionButton: { width: 32, height: 32, justifyContent: 'center', alignItems: 'center' },
     micButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', position: 'relative' },
     pulseCircle: { position: 'absolute', width: 30, height: 30, borderRadius: 15, backgroundColor: colors.primary },
     

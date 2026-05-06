@@ -45,7 +45,9 @@ const RegistrationLayout: React.FC<RegistrationLayoutProps> = ({
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="always"
+        nestedScrollEnabled
+        removeClippedSubviews={false}
       >
         {children}
         <View style={{ height: 100 }} />

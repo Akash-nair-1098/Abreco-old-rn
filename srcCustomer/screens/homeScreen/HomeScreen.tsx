@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,11 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'; // Added f
 import PromoCarousel from '../../components/carousel/PromoCarousel';
 import ProductCardComponent from '../../components/ProductCardComponent';
 import CategoryCard from '../../components/CategoryCard';
-import { useSearchStore } from '../../store/useSearchStore';
-import { useAuthStore } from '../../store/useAuthStore';
-import { useIsFocused } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { useToast } from '../../components/ToastContext';
 import { useTheme } from '../../../ThemeContext';
 import { SVG_ICONS } from '../../assets/icons/svg';
 import Icon from '../../../Icon';
@@ -46,7 +42,17 @@ const CustomerHomeScreen = ({ navigation }: any) => {
   const { t } = useTranslation();
   const { colors, isDark } = useTheme();
   const styles = makeStyles(colors);
-  const isFocused = useIsFocused();
+
+  const renderDealItem = useCallback(
+    ({ item }: { item: any }) => (
+      <ProductCardComponent item={item} cardWidth={180} isFlashDeal={true} />
+    ),
+    [],
+  );
+  const renderFeaturedItem = useCallback(
+    ({ item }: { item: any }) => <ProductCardComponent item={item} cardWidth={180} />,
+    [],
+  );
 
   const [todaysDeals, setTodaysDeals] = useState<any[]>([]);
   const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
@@ -114,7 +120,7 @@ const CustomerHomeScreen = ({ navigation }: any) => {
       }
     };
     fetchData();
-  }, [isFocused]);
+  }, []);
 
   if (isInitialLoading) {
     return (
@@ -148,9 +154,7 @@ const CustomerHomeScreen = ({ navigation }: any) => {
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.listPadding}
-              renderItem={({ item }) => (
-                <ProductCardComponent item={item} cardWidth={180} isFlashDeal={true} />
-              )}
+              renderItem={renderDealItem}
             />
           </View>
         )}
@@ -202,9 +206,7 @@ const CustomerHomeScreen = ({ navigation }: any) => {
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.listPadding}
-              renderItem={({ item }) => (
-                <ProductCardComponent item={item} cardWidth={180} />
-              )}
+              renderItem={renderFeaturedItem}
             />
           </View>
         )}

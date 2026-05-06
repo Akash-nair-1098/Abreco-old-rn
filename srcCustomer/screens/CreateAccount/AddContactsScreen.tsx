@@ -26,6 +26,7 @@ import CustomPicker from './components/CustomPicker';
 import Dropdown from '../../components/DropDown';
 import { useTheme } from '../../../ThemeContext';
 import Icon from '../../../Icon';
+import { getApiErrorMessage } from '../../utilities/apiErrorMessage';
 
 const ROLE_OPTIONS: DropdownOption[] = [
   { id: 'Manager', name: 'Manager' },
@@ -213,7 +214,7 @@ export const AddContactsScreen = ({ route }: any) => {
       showToast('Contacts saved successfully', 'success');
       navigateNext();
     } catch (error: any) {
-      showToast(error?.response?.data?.message || 'Failed to save contacts', 'error');
+      showToast(getApiErrorMessage(error, 'Failed to save contacts'), 'error');
     } finally {
       setLoading(false);
     }

@@ -20,8 +20,11 @@ export interface RegisterPayload {
 export interface BusinessAddress {
   location_name: string;
   address: string;
-  city: string;
+  city?: string;
   phone_number: string;
+  latitude?: string;
+  longitude?: string;
+  id?: string;
 }
 
 export interface BusinessInfoPayload {
@@ -63,6 +66,7 @@ export interface BankInfoPayload {
 }
 
 export interface SendOtpPayload {
+  email: string;
   ph_cc: string;
   phone_number: string;
 }

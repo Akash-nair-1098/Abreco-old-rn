@@ -16,9 +16,9 @@ export interface BannerData {
   title: string;
   subtitle: string;
   offerTag: string;
-  image: string; // URL string from API
+  background_image_url: string; // URL string from API
   buttonColor?: string;
-  id:string;
+  id: string;
 }
 
 const BannerItem = ({ item }: { item: BannerData }) => {
@@ -41,10 +41,10 @@ const BannerItem = ({ item }: { item: BannerData }) => {
 
   return (
     <ImageBackground
-      source={{ uri: item.image }}
+      resizeMode="contain"
+      source={{uri: item.background_image_url}}
       style={styles.container}
-      imageStyle={{ borderRadius: 12 }}
-    >
+      imageStyle={styles.image}>
       {/* Dynamic Overlay to ensure text readability regardless of image brightness */}
       <View style={styles.overlay}>
         {/* Offer Tag */}
@@ -64,15 +64,14 @@ const BannerItem = ({ item }: { item: BannerData }) => {
 
         {/* Action Button */}
         <TouchableOpacity
-        onPress={handlePress}
+          onPress={handlePress}
           style={[
             styles.button,
-            { backgroundColor: item.buttonColor || colors.primary },
+            {backgroundColor: item.buttonColor || colors.primary},
           ]}
-          activeOpacity={0.8}
-        >
+          activeOpacity={0.8}>
           <Text style={styles.buttonText}>
-            {t('shop_now', { defaultValue: 'Shop Now' })}
+            {t('shop_now', {defaultValue: 'Shop Now'})}
           </Text>
         </TouchableOpacity>
       </View>
@@ -88,6 +87,10 @@ const makeStyles = (colors: any, isDark: boolean) =>
       height: 200,
       width: '100%',
       overflow: 'hidden',
+    },
+    image: {
+      borderRadius: 12,
+      resizeMode: 'stretch',
     },
     overlay: {
       flex: 1,

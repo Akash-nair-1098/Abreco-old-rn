@@ -8,6 +8,8 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  Platform,
+  Linking,
 } from 'react-native';
 import DocumentPicker, { types } from 'react-native-document-picker';
 import FileViewer from 'react-native-file-viewer'; // To open/preview files
@@ -21,6 +23,7 @@ import { SVG_ICONS } from '../../assets/icons/svg';
 import { useToast } from '../../components/ToastContext';
 import { registerKYCDocuments, fetchSavedRegistrationData } from '../../api/auth/authApi';
 import { useTheme } from '../../../ThemeContext';
+import { getApiErrorMessage } from '../../utilities/apiErrorMessage';
 
 export const KYCUploadsScreen = ({ route }: any) => {
   const { params } = route;
@@ -143,20 +146,67 @@ export const KYCUploadsScreen = ({ route }: any) => {
     }
   };
 
+  const extFromFile = (file: any) => {
+    const name: string = file?.name || '';
+    if (name.includes('.')) {
+      const ext = name.split('.').pop();
+      if (ext && /^[a-zA-Z0-9]+$/.test(ext)) return ext.toLowerCase();
+    }
+    const mime = (file?.type || '').split(';')[0];
+    const map: Record<string, string> = {
+      'application/pdf': 'pdf',
+      'image/jpeg': 'jpg',
+      'image/jpg': 'jpg',
+      'image/png': 'png',
+      'image/heic': 'heic',
+      'image/webp': 'webp',
+    };
+    return map[mime] || 'bin';
+  };
+
   const handlePreview = async (urlOrFile: any) => {
     try {
       if (typeof urlOrFile === 'string') {
-        // Preview existing URL from server
-        await FileViewer.open(urlOrFile);
-      } else if (urlOrFile?.uri) {
-        // Preview locally selected file
-        // On Android, we sometimes need to copy the file to a cache folder to view it
-        const localPath = `${RNFS.CachesDirectoryPath}/${urlOrFile.name}`;
-        await RNFS.copyFile(urlOrFile.uri, localPath);
-        await FileViewer.open(localPath);
+        const s = urlOrFile.trim();
+        if (/^https?:\/\//i.test(s)) {
+          const ok = await Linking.canOpenURL(s);
+          if (ok) await Linking.openURL(s);
+          else await FileViewer.open(s, { showOpenWithDialog: true });
+          return;
+        }
+        await FileViewer.open(s, { showOpenWithDialog: true });
+        return;
+      }
+
+      if (urlOrFile?.uri) {
+        const uri = urlOrFile.uri as string;
+        const ext = extFromFile(urlOrFile);
+        const safeBase = `preview_${Date.now()}`;
+        const localPath = `${RNFS.CachesDirectoryPath}/${safeBase}.${ext}`;
+
+        if (Platform.OS === 'android' && uri.startsWith('content://')) {
+          const b64 = await RNFS.readFile(uri, 'base64');
+          await RNFS.writeFile(localPath, b64, 'base64');
+        } else {
+          const from = uri.startsWith('file://') ? uri.replace('file://', '') : uri;
+          try {
+            await RNFS.copyFile(from, localPath);
+          } catch {
+            const b64 = await RNFS.readFile(uri, 'base64');
+            await RNFS.writeFile(localPath, b64, 'base64');
+          }
+        }
+
+        await FileViewer.open(localPath, {
+          showOpenWithDialog: true,
+          displayName: urlOrFile.name || `document.${ext}`,
+        });
       }
     } catch (e) {
-      Alert.alert('Preview Error', 'Could not open the document. Please ensure you have a PDF/Image viewer installed.');
+      Alert.alert(
+        'Preview Error',
+        'Could not open the document. Try opening it from your files app, or install a PDF/image viewer.',
+      );
     }
   };
 
@@ -241,8 +291,7 @@ export const KYCUploadsScreen = ({ route }: any) => {
       showToast('KYC Submitted Successfully', 'success');
       navigateNext();
     } catch (error: any) {
-      console.log('error is', error)
-      showToast(error.response?.data?.message || error?.errors?.trade_license || 'Upload failed', 'error');
+      showToast(getApiErrorMessage(error, 'Upload failed'), 'error');
     } finally {
       setLoading(false);
     }

@@ -13,7 +13,6 @@ import {
   Image,
   StatusBar,
 } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../../ThemeContext';
 import Icon from '../../../Icon';
@@ -21,6 +20,7 @@ import { SVG_ICONS } from '../../assets/icons/svg';
 import { useAuthStore } from '../../store/useAuthStore';
 import { login } from '../../api/auth/authApi';
 import { useTranslation } from 'react-i18next';
+import i18n from '../../utilities/i18n';
 import { loginScreenStyles } from './styles';
 import { useToast } from '../../components/ToastContext';
 
@@ -28,7 +28,7 @@ const LoginScreen = ({ navigation }: any) => {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const styles = loginScreenStyles(insets, colors, isDark);
-  const { t } = useTranslation();
+ const {t} = useTranslation(undefined, {i18n});
   const { showToast } = useToast()
 
   const [customerId, setCustomerId] = useState('');

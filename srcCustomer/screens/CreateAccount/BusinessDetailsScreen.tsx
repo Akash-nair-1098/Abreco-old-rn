@@ -23,9 +23,17 @@ import {
   getRegisterChoiceList,
   fetchSavedRegistrationData,
 } from '../../api/auth/authApi';
+import AddressPlacesField from '../../components/AddressPlacesField';
+import {
+  getCurrentCoordinates,
+  requestLocationPermission,
+} from '../../utilities/locationHelper';
+import { geocodeAddressLine } from '../../utilities/googlePlaces';
 import { BusinessInfoPayload } from '../../api/auth/auth.type';
 import { useToast } from '../../components/ToastContext';
 import { useTheme } from '../../../ThemeContext';
+import { GOOGLE_MAPS_API_KEY } from '@env';
+import { getApiErrorMessage } from '../../utilities/apiErrorMessage';
 
 export const BusinessDetailsScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
@@ -56,13 +64,15 @@ export const BusinessDetailsScreen = () => {
     vatExpiry: '',
     officePhone: '',
     registeredAddresses: [
-      { 
-        id: 'temp-1', // Temporary ID for initial state
-        location_name: 'Main Office', 
-        address: '', 
-        phone_number: '', 
+      {
+        id: 'temp-1',
+        location_name: 'Main Office',
+        address: '',
+        phone_number: '',
         address_status: 'Pending',
-        isNew: true 
+        latitude: '',
+        longitude: '',
+        isNew: true,
       },
     ],
   });
@@ -107,14 +117,33 @@ export const BusinessDetailsScreen = () => {
       const allAddresses =
         data.addresses?.length > 0
           ? data.addresses.map((addr: any) => ({
-              id: addr.id?.toString(), // Keep existing database ID
+              id: addr.id?.toString(),
               location_name: addr.location_name || '',
               address: addr.address || '',
               phone_number: addr.phone_number || '',
               address_status: addr.address_status || 'Pending',
-              isNew: false // Mark as existing
+              latitude:
+                addr.latitude != null && addr.latitude !== ''
+                  ? String(addr.latitude)
+                  : '',
+              longitude:
+                addr.longitude != null && addr.longitude !== ''
+                  ? String(addr.longitude)
+                  : '',
+              isNew: false,
             }))
-          : [{ id: 'temp-1', location_name: 'Main Office', address: '', phone_number: '', address_status: 'Pending', isNew: true }];
+          : [
+              {
+                id: 'temp-1',
+                location_name: 'Main Office',
+                address: '',
+                phone_number: '',
+                address_status: 'Pending',
+                latitude: '',
+                longitude: '',
+                isNew: true,
+              },
+            ];
 
       const savedState = {
         companyName: data.first_name || '',
@@ -198,6 +227,21 @@ export const BusinessDetailsScreen = () => {
 
     setLoading(true);
     try {
+      const resolvedAddresses = await Promise.all(
+        formData.registeredAddresses.map(async (row: any) => {
+          let lat = row.latitude?.toString().trim() ?? '';
+          let lng = row.longitude?.toString().trim() ?? '';
+          if ((!lat || !lng) && row.address?.trim()) {
+            const geo = await geocodeAddressLine(row.address);
+            if (geo) {
+              lat = geo.lat;
+              lng = geo.lng;
+            }
+          }
+          return { ...row, latitude: lat, longitude: lng };
+        }),
+      );
+
       const payload: BusinessInfoPayload = {
         secret_token: params.secret_token,
         user_id: params.user_id,
@@ -210,10 +254,19 @@ export const BusinessDetailsScreen = () => {
         vat_trn: formData.vatTrn,
         vat_expiry: formData.vatExpiry,
         office_phone_number: formData.officePhone,
-        addresses: formData.registeredAddresses.map(
-          ({ id, location_name, address, phone_number, isNew }: any) => {
+        addresses: resolvedAddresses.map(
+          ({
+            id,
+            location_name,
+            address,
+            phone_number,
+            isNew,
+            latitude,
+            longitude,
+          }: any) => {
             const addrObj: any = { location_name, address, phone_number };
-            // Only send ID if it is an existing record (not a new user/newly added address)
+            if (latitude) addrObj.latitude = String(latitude);
+            if (longitude) addrObj.longitude = String(longitude);
             if (!isNew) {
               addrObj.id = id;
             }
@@ -223,11 +276,11 @@ export const BusinessDetailsScreen = () => {
       };
 
       await registerBusinessInfo(payload);
+      setFormData((prev: any) => ({ ...prev, registeredAddresses: resolvedAddresses }));
       showToast('Business details saved!', 'success');
       navigateNext();
-    } catch (e:any){
-      console.log('error is', e)
-      showToast(e?.errors?.office_phone_number || 'Failed to save', 'error');
+    } catch (e: any) {
+      showToast(getApiErrorMessage(e, 'Failed to save'), 'error');
     } finally {
       setLoading(false);
     }
@@ -240,6 +293,54 @@ export const BusinessDetailsScreen = () => {
         addr.id === id ? { ...addr, [field]: value } : addr,
       ),
     }));
+  };
+
+  const setAddressFromPlace = (
+    addrId: string,
+    address: string,
+    lat: string,
+    lng: string,
+  ) => {
+    setFormData((prev: any) => ({
+      ...prev,
+      registeredAddresses: prev.registeredAddresses.map((addr: any) =>
+        addr.id === addrId
+          ? {
+              ...addr,
+              address,
+              latitude: lat || '',
+              longitude: lng || '',
+            }
+          : addr,
+      ),
+    }));
+  };
+
+  const [locatingId, setLocatingId] = useState<string | null>(null);
+
+  const handleUseLocationForAddress = async (addrId: string) => {
+    const hasPermission = await requestLocationPermission();
+    if (!hasPermission) {
+      showToast('Please enable location to use this option.', 'error');
+      return;
+    }
+    setLocatingId(addrId);
+    try {
+      const location: any = await getCurrentCoordinates();
+      const lat = location.latitude.toString();
+      const lng = location.longitude.toString();
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`,
+      );
+      const json = await response.json();
+      const addressName =
+        json.results?.[0]?.formatted_address ?? `${lat}, ${lng}`;
+      setAddressFromPlace(addrId, addressName, lat, lng);
+    } catch {
+      showToast('Could not fetch location.', 'error');
+    } finally {
+      setLocatingId(null);
+    }
   };
 
   if (fetchingData) {
@@ -386,7 +487,7 @@ export const BusinessDetailsScreen = () => {
           onChangeText={text => setFormData((p: any) => ({ ...p, officePhone: text }))}
           error={errors.officePhone}
           keyboardType="phone-pad"
-          maxLength={10}
+          // maxLength={10}
           disabled={!bizEditable}
         />
 
@@ -399,13 +500,15 @@ export const BusinessDetailsScreen = () => {
                   ...p,
                   registeredAddresses: [
                     ...p.registeredAddresses,
-                    { 
-                      id: `temp-${Date.now()}`, 
-                      location_name: '', 
-                      address: '', 
-                      phone_number: '', 
+                    {
+                      id: `temp-${Date.now()}`,
+                      location_name: '',
+                      address: '',
+                      phone_number: '',
                       address_status: 'Pending',
-                      isNew: true 
+                      latitude: '',
+                      longitude: '',
+                      isNew: true,
                     },
                   ],
                 }))
@@ -473,14 +576,35 @@ export const BusinessDetailsScreen = () => {
                 onChangeText={text => updateAddress(addr.id, 'location_name', text)}
                 disabled={!bizEditable}
               />
-              <CustomInput
+              <AddressPlacesField
                 label="Full Address"
-                placeholder="Enter full address"
                 value={addr.address}
-                onChangeText={text => updateAddress(addr.id, 'address', text)}
+                onChangeText={text => {
+                  updateAddress(addr.id, 'address', text);
+                  updateAddress(addr.id, 'latitude', '');
+                  updateAddress(addr.id, 'longitude', '');
+                }}
+                onPlaceResolved={(a, lat, lng) =>
+                  setAddressFromPlace(addr.id, a, lat, lng)
+                }
                 error={index === 0 ? errors.address : null}
                 disabled={!bizEditable}
               />
+              <TouchableOpacity
+                style={styles.addressLocationBtn}
+                onPress={() => handleUseLocationForAddress(addr.id)}
+                disabled={!bizEditable || locatingId === addr.id}>
+                {locatingId === addr.id ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <>
+                    <Icon xml={SVG_ICONS.locationPin} size={16} color={colors.primary} />
+                    <Text style={styles.addressLocationBtnText}>
+                      Use current location
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
               <CustomInput
                 label="Phone Number"
                 placeholder="Enter Phone Number"

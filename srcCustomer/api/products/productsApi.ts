@@ -26,14 +26,19 @@ export const getProductList = async (payload: ProductListPayload = {}) => {
   return response.data.results.data;
 };
 
- export const getProductDetails = async ({id}:any) => {
-   console.log(
-     'product details called with',
-     `products/product-detail?id=${id}`,
-   );
-   const response = await api.get(
-     `products/product-detail?id=${id}`,
-   );
+ export const getProductDetails = async ({
+   id,
+   in_shop_id,
+ }: {
+   id: string;
+   in_shop_id?: string;
+ }) => {
+   let url = `products/product-detail?id=${encodeURIComponent(id)}`;
+   if (in_shop_id) {
+     url += `&in_shop_id=${encodeURIComponent(in_shop_id)}`;
+   }
+   console.log('product details called with', url);
+   const response = await api.get(url);
    console.log('response is', response);
 
    return response.data.results.data;
@@ -179,13 +184,35 @@ export const getVoiceSearchToken = async () => {
 
 
 
+const normalizeSearchTerm = (value: string) =>
+  value
+    .normalize('NFC')
+    .replace(/[!?.,/\\|()[\]{}"'`~@#$%^&*_+=:;<>]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const buildSearchVariants = (term: string): string[] => {
+  const normalized = normalizeSearchTerm(term);
+  const lower = normalized.toLowerCase();
+  const variants = [term, normalized, lower].filter(Boolean);
+  return Array.from(new Set(variants));
+};
+
 export const globalSearchProducts = async (term: string) => {
   try {
-    // The URL structure: customers/global-search?search=term
-    const response = await api.get(`customers/global-search?search=${term}`);
+    const variants = buildSearchVariants(term);
 
-    // Based on your JSON structure: response.data.results.data.results
-    return response.data.results.data.results;
+    for (const query of variants) {
+      const response = await api.get('customers/global-search', {
+        params: { search: query },
+      });
+      const results = response.data?.results?.data?.results || [];
+      if (results.length > 0) {
+        return results;
+      }
+    }
+
+    return [];
   } catch (error) {
     console.error('Global search failed:', error);
     throw error;
@@ -279,6 +306,20 @@ export const getProfileDetails = async () => {
     return response.data.results.data;
   } catch (error) {
     console.error('API Error [getProfileDetails]:', error);
+    throw error;
+  }
+};
+
+export const getStatementOfAccounts = async (
+  period: 'this_month' | 'last_3_month' | 'this_year',
+) => {
+  try {
+    const response = await api.get(
+      `customers/statement-of-accounts?period=${period}`,
+    );
+    return response.data.results;
+  } catch (error) {
+    console.error('API Error [getStatementOfAccounts]:', error);
     throw error;
   }
 };

@@ -20,7 +20,7 @@ import { useTheme } from '../../../ThemeContext';
 import { getInvoices } from '../../api/products/productsApi';
 
 // --- Types ---
-type TabType = 'All' | 'PAID' | 'UNPAID';
+type TabType = '' | 'pending' | 'paid';
 type TimeFilter = 'this_month' | 'last_month' | '';
 
 interface Invoice {
@@ -34,10 +34,10 @@ interface Invoice {
   pdf_url: string;
 }
 
-const TABS: { id: TabType; icon: string; label: string }[] = [
-  { id: 'All', icon: SVG_ICONS.fileIcon, label: 'All' },
-  { id: 'UNPAID', icon: SVG_ICONS.dollarIcon, label: 'Pending' },
-  { id: 'PAID', icon: SVG_ICONS.financeHistory, label: 'Paid' },
+const TABS: {id: TabType; icon: string; label: string}[] = [
+  {id: '', icon: SVG_ICONS.fileIcon, label: 'All'},
+  {id: 'pending', icon: SVG_ICONS.dollarIcon, label: 'Pending'},
+  {id: 'paid', icon: SVG_ICONS.financeHistory, label: 'Paid'},
 ];
 
 const InvoicesScreen = () => {

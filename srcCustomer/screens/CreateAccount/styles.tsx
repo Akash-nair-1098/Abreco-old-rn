@@ -460,4 +460,17 @@ export const makeStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
+
+  addressLocationBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+    marginTop: 2,
+  },
+  addressLocationBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
+  },
 });

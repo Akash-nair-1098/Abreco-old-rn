@@ -41,15 +41,19 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
   
 const MainNavigator = () => {
-  const [isLoggedIn,setIsLoggedIn]= useState<any>(null)
+  const [isHydrated, setIsHydrated] = useState(useAuthStore.persist.hasHydrated());
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
 
   useEffect(() => {
-    setIsLoggedIn(isAuthenticated);
-  }, [isAuthenticated]);
+    const unsubscribe = useAuthStore.persist.onFinishHydration(() => {
+      setIsHydrated(true);
+    });
+
+    return unsubscribe;
+  }, []);
 
 
-if (isLoggedIn == null) {
+if (!isHydrated) {
   return <LoadingScreen />
 }
 

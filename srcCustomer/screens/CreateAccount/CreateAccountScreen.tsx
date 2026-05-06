@@ -21,6 +21,7 @@ import { SCREEN_HEIGHT } from '../../utilities/dimensions';
 import { RegisterPayload } from '../../api/auth/auth.type';
 import { COUNTRY_CODES } from '../../utilities/Strings';
 import Dropdown from '../../components/DropDown';
+import { getApiErrorMessage } from '../../utilities/apiErrorMessage';
 
 const CreateAccountScreen = ({ navigation }: any) => {
   const { colors, isDark } = useTheme(); // Extracted theme colors
@@ -78,6 +79,7 @@ const CreateAccountScreen = ({ navigation }: any) => {
     setSendOtpLoading(true);
     try {
       await sendOtpApi({
+        email: email,
         ph_cc: selectedCountryCode,
         phone_number: mobile,
       });
@@ -86,7 +88,7 @@ const CreateAccountScreen = ({ navigation }: any) => {
       setCountdown(60);
       setErrors({ ...errors, mobile: null }); 
     } catch (error: any) {
-      showToast(error.response?.data?.message || 'Failed to send OTP', 'error');
+      showToast(getApiErrorMessage(error, 'Failed to send OTP'), 'error');
     } finally {
       setSendOtpLoading(false);
     }
@@ -131,10 +133,7 @@ const CreateAccountScreen = ({ navigation }: any) => {
         user_id: result.user.id
       });
     } catch (error: any) {
-      showToast(
-        error.errors?.company_name || error.errors?.phone_number || error.errors?.email || error.errors?.password || 'Registration failed',
-        'error',
-      );
+      showToast(getApiErrorMessage(error, 'Registration failed'), 'error');
     } finally {
       setLoading(false);
     }

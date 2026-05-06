@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Text, View, StyleSheet, ActivityIndicator } from 'react-native';
+import { Text, View, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 
 import { makeStyles } from './styles';
 import CustomInput from './components/CustomInput';
@@ -12,6 +12,7 @@ import { BankInfoPayload } from '../../api/auth/auth.type';
 import { registerBankDetails, fetchSavedRegistrationData } from '../../api/auth/authApi';
 import { SVG_ICONS } from '../../assets/icons/svg';
 import { useTheme } from '../../../ThemeContext';
+import { getApiErrorMessage } from '../../utilities/apiErrorMessage';
 
 export const FinancialInfoScreen = ({ route }: any) => {
   const { params } = route;
@@ -167,7 +168,7 @@ export const FinancialInfoScreen = ({ route }: any) => {
       showToast('Bank details saved successfully', 'success');
       navigateNext();
     } catch (error: any) {
-      showToast(error.response?.data?.message || 'Failed to save bank details', 'error');
+      showToast(getApiErrorMessage(error, 'Failed to save bank details'), 'error');
     } finally {
       setLoading(false);
     }
@@ -202,10 +203,21 @@ export const FinancialInfoScreen = ({ route }: any) => {
       isLoading={loading}
       rejectedSteps={rejectedSteps}
     >
-      <Text style={styles.title}>Bank Details</Text>
-      <Text style={styles.subtitle}>
-        Provide bank details for refunds and financial transactions. (Optional)
-      </Text>
+      <View style={themedLocalStyles.titleRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>Bank Details</Text>
+          <Text style={styles.subtitle}>
+            Provide bank details for refunds and financial transactions. (Optional)
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={navigateNext}
+          disabled={loading}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={themedLocalStyles.skipBtn}>
+          <Text style={themedLocalStyles.skipText}>Skip</Text>
+        </TouchableOpacity>
+      </View>
 
       {isRejectedFlow && (
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
@@ -282,4 +294,7 @@ export const FinancialInfoScreen = ({ route }: any) => {
 const makeLocalStyles = (colors: any) =>
   StyleSheet.create({
     inputGroup: { marginBottom: 20 },
+    titleRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 },
+    skipBtn: { paddingVertical: 8, paddingHorizontal: 4 },
+    skipText: { color: colors.primary, fontSize: 16, fontWeight: '700' },
   });

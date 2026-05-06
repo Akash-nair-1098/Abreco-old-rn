@@ -245,6 +245,7 @@ const ProfileScreen = ({ navigation }: any) => {
 
           <MenuItem icon={SVG_ICONS.branchesBuilding} label={t('profile.branches')} onPress={() => NavigationService.navigate('BranchLocationScreen')} styles={styles} colors={colors} />
           <MenuItem icon={SVG_ICONS.transactionHistory} label={t('profile.transactions')} onPress={() => NavigationService.navigate('TransactionScreen')} styles={styles} colors={colors} />
+          <MenuItem icon={SVG_ICONS.invoiceDollar} label={'SOA'} onPress={() => NavigationService.navigate('SOAScreen')} styles={styles} colors={colors} />
           <MenuItem icon={SVG_ICONS.invoiceDollar} label={t('profile.invoices')} onPress={() => NavigationService.navigate('InvoiceScreen')} styles={styles} colors={colors} />
           <MenuItem icon={SVG_ICONS.fileIcon} label={t('profile.privacy')} onPress={() => NavigationService.navigate('LegalDocScreen', { docType: 'privacy_policy' })} styles={styles} colors={colors} />
           <MenuItem icon={SVG_ICONS.fileIcon} label={t('profile.terms')} onPress={() => NavigationService.navigate('LegalDocScreen', { docType: 'customer_terms' })} styles={styles} colors={colors} />

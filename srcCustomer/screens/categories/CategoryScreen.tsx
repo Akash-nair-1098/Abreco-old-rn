@@ -1,48 +1,50 @@
-import React, { useCallback, useState, useMemo, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  ScrollView, 
-  StyleSheet, 
-  StatusBar, 
-  RefreshControl 
+import React, {useCallback, useState, useMemo, useEffect} from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  StatusBar,
+  RefreshControl,
 } from 'react-native';
 import CategoryCard from '../../components/CategoryCard';
 import Icon from '../../../Icon';
-import { SVG_ICONS } from '../../assets/icons/svg';
-import { mainCategory } from '../../api/products/productsApi';
+import {SVG_ICONS} from '../../assets/icons/svg';
+import {mainCategory} from '../../api/products/productsApi';
 import LoadingScreen from '../../components/LoadingScreen';
-import { useToast } from '../../components/ToastContext';
-import { getRandomGradient } from '../../utilities/theme';
-import { useSearchStore } from '../../store/useSearchStore';
-import { useFocusEffect } from '@react-navigation/native';
-import { useTranslation } from 'react-i18next';
-import { useTheme } from '../../../ThemeContext';
+import {useToast} from '../../components/ToastContext';
+import {getRandomGradient} from '../../utilities/theme';
+import {useSearchStore} from '../../store/useSearchStore';
+import {useFocusEffect} from '@react-navigation/native';
+import {useTranslation} from 'react-i18next';
+import {useTheme} from '../../../ThemeContext';
 
-export default function CategoryScreen({ navigation }: any) {
-  const { t } = useTranslation();
-  const { colors, isDark } = useTheme();
+export default function CategoryScreen({navigation}: any) {
+  const {t, i18n} = useTranslation();
+  const {colors, isDark} = useTheme();
   const styles = makeStyles(colors);
 
   const [categoryData, setCategoryData] = useState<any>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  
-  const searchText = useSearchStore(state => state.searchText);
-  const { showToast } = useToast();
 
-  // Unified fetch function
+  const searchText = useSearchStore(state => state.searchText);
+  const {showToast} = useToast();
+
+  // Unified fetch function including the current language key
   const getCategoryData = async (isPullToRefresh = false) => {
-    // Show full screen loader ONLY if no data exists and it's not a pull-to-refresh
     if (categoryData.length === 0 && !isPullToRefresh) {
       setLoading(true);
     }
 
     try {
-      const payload = { search: searchText };
+      const payload = {
+        search: searchText,
+        language: i18n.language || 'en', // Pass the selected language code
+      };
       const data = await mainCategory(payload);
       setCategoryData(data || []);
-      console.log('categories response is', data)
+      console.log('categories response is', data);
     } catch (error: any) {
       showToast(error?.message || t('failed_fetch_categories'), 'error');
     } finally {
@@ -51,13 +53,12 @@ export default function CategoryScreen({ navigation }: any) {
     }
   };
 
-  // 1. Initial Load: Fetch data once when component mounts
+  // 1. Initial Load: Fetch data once when component mounts or language switches
   useEffect(() => {
     getCategoryData();
-  }, []);
+  }, [i18n.language]);
 
   // 2. Handle Search: Only fetch when searchText changes (with debounce)
-  // Removed focus-based fetching to prevent redundant calls on tab switch
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       if (searchText.length > 2 || searchText.length === 0) {
@@ -72,7 +73,7 @@ export default function CategoryScreen({ navigation }: any) {
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     getCategoryData(true);
-  }, [searchText]);
+  }, [searchText, i18n.language]);
 
   const memoizedGradients = useMemo(() => {
     return categoryData.map(() => {
@@ -90,31 +91,25 @@ export default function CategoryScreen({ navigation }: any) {
     });
   };
 
-  // Full screen loading only for the very first fetch with no data
   if (loading && categoryData.length === 0) {
-    return (
-      <LoadingScreen
-        message={t('fetching_categories')}
-      />
-    );
+    return <LoadingScreen message={t('fetching_categories')} />;
   }
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-      
-      <ScrollView 
-        style={styles.container} 
+
+      <ScrollView
+        style={styles.container}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={colors.primary}
-            colors={[colors.primary]} // Android
+            colors={[colors.primary]}
           />
-        }
-      >
+        }>
         <View style={styles.headerRow}>
           <Icon xml={SVG_ICONS.productsBag} color={colors.primary} size={28} />
           <Text style={styles.headerTitle}>{t('products')}</Text>

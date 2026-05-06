@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
+  TextInput,
 } from 'react-native';
 
 import Icon from '../../../../Icon';
-import { SVG_ICONS } from '../../../assets/icons/svg';
-import { useToast } from '../../../components/ToastContext';
-import { useTheme } from '../../../../ThemeContext';
+import {SVG_ICONS} from '../../../assets/icons/svg';
+import {useToast} from '../../../components/ToastContext';
+import {useTheme} from '../../../../ThemeContext';
 
 interface PropTypes {
   handleAddCart: (quantity: number) => void;
@@ -21,6 +22,12 @@ interface PropTypes {
   onQuantityChange?: (quantity: number) => void; // New prop for parent communication
 }
 
+const MAX_QUANTITY_DIGITS = 6;
+const MAX_QUANTITY = 999999;
+const MIN_QTY_INPUT_WIDTH = 40;
+const MAX_QTY_INPUT_WIDTH = 92;
+const APPROX_DIGIT_WIDTH = 14;
+
 const ProductActionBar = ({
   handleAddCart,
   handleBuyNow,
@@ -29,8 +36,9 @@ const ProductActionBar = ({
   onQuantityChange,
 }: PropTypes) => {
   const [quantity, setQuantity] = useState(1);
-  const { showToast } = useToast();
-  const { colors, isDark } = useTheme();
+  const [inputValue, setInputValue] = useState('1');
+  const {showToast} = useToast();
+  const {colors, isDark} = useTheme();
   const styles = makeStyles(colors, isDark, isOutOfStock);
 
   // Sync quantity with parent whenever it changes
@@ -38,6 +46,7 @@ const ProductActionBar = ({
     if (onQuantityChange) {
       onQuantityChange(quantity);
     }
+    setInputValue(quantity.toString());
   }, [quantity]);
 
   const handleDecrement = () => {
@@ -45,7 +54,27 @@ const ProductActionBar = ({
   };
 
   const handleIncrement = () => {
-    setQuantity(prev => prev + 1);
+    setQuantity(prev => Math.min(prev + 1, MAX_QUANTITY));
+  };
+
+  const handleInputChange = (text: string) => {
+    // Only allow numbers and keep quantity within 6 digits.
+    const cleanNumber = text.replace(/[^0-9]/g, '').slice(0, MAX_QUANTITY_DIGITS);
+    setInputValue(cleanNumber);
+
+    if (cleanNumber !== '') {
+      const num = parseInt(cleanNumber, 10);
+      if (num > 0) {
+        setQuantity(Math.min(num, MAX_QUANTITY));
+      }
+    }
+  };
+
+  const handleInputBlur = () => {
+    // If input is empty or invalid on blur, reset to current quantity
+    if (inputValue === '' || parseInt(inputValue, 10) === 0) {
+      setInputValue(quantity.toString());
+    }
   };
 
   const onAddPress = () => {
@@ -64,6 +93,14 @@ const ProductActionBar = ({
     }
   };
 
+  const qtyInputWidth = Math.min(
+    MAX_QTY_INPUT_WIDTH,
+    Math.max(
+      MIN_QTY_INPUT_WIDTH,
+      Math.max(inputValue.length, 1) * APPROX_DIGIT_WIDTH + 16,
+    ),
+  );
+
   return (
     <View style={styles.footerContainer}>
       {/* 1. Increment/Decrement Section */}
@@ -72,24 +109,33 @@ const ProductActionBar = ({
           onPress={handleDecrement}
           style={styles.qtyBtn}
           activeOpacity={0.7}
-          disabled={isOutOfStock}
-        >
+          disabled={isOutOfStock}>
           <Icon
             xml={SVG_ICONS.minusIcon}
             color={isOutOfStock ? colors.textMuted : colors.text}
           />
         </TouchableOpacity>
 
-        <View style={styles.qtyDisplay}>
-          <Text style={styles.qtyText}>{quantity}</Text>
+        <View style={[styles.qtyDisplay, {width: qtyInputWidth}]}>
+          <TextInput
+            style={styles.qtyInput}
+            value={inputValue}
+            onChangeText={handleInputChange}
+            onBlur={handleInputBlur}
+            keyboardType="number-pad"
+            maxLength={MAX_QUANTITY_DIGITS}
+            editable={!isOutOfStock}
+            selectTextOnFocus={true}
+            multiline={false}
+            scrollEnabled
+          />
         </View>
 
         <TouchableOpacity
           onPress={handleIncrement}
           style={styles.qtyBtn}
           activeOpacity={0.7}
-          disabled={isOutOfStock}
-        >
+          disabled={isOutOfStock}>
           <Icon
             xml={SVG_ICONS.plusIcon}
             color={isOutOfStock ? colors.textMuted : colors.text}
@@ -102,8 +148,7 @@ const ProductActionBar = ({
         disabled={loading}
         onPress={onAddPress}
         style={styles.addCartBtn}
-        activeOpacity={0.8}
-      >
+        activeOpacity={0.8}>
         {loading ? (
           <ActivityIndicator color={colors.primary} />
         ) : (
@@ -122,8 +167,7 @@ const ProductActionBar = ({
         disabled={loading}
         onPress={onBuyPress}
         style={styles.buyNowBtn}
-        activeOpacity={0.8}
-      >
+        activeOpacity={0.8}>
         {loading ? (
           <ActivityIndicator color="white" />
         ) : (
@@ -169,9 +213,18 @@ const makeStyles = (colors: any, isDark: boolean, isOutOfStock: boolean) =>
       alignItems: 'center',
     },
     qtyDisplay: {
-      minWidth: 30,
-      alignItems: 'center',
+      minWidth: MIN_QTY_INPUT_WIDTH,
       justifyContent: 'center',
+      overflow: 'hidden',
+    },
+    qtyInput: {
+      color: colors.text,
+      fontSize: 18,
+      fontWeight: '800',
+      width: '100%',
+      textAlign: 'left',
+      paddingHorizontal: 8,
+      padding: 0, // Removes default Android padding
     },
     qtyText: {
       color: colors.text,
@@ -201,7 +254,7 @@ const makeStyles = (colors: any, isDark: boolean, isOutOfStock: boolean) =>
       alignItems: 'center',
       elevation: isOutOfStock ? 0 : 4,
       shadowColor: colors.primary,
-      shadowOffset: { width: 0, height: 4 },
+      shadowOffset: {width: 0, height: 4},
       shadowOpacity: isDark ? 0.5 : 0.2,
       shadowRadius: 8,
     },

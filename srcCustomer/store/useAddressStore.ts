@@ -30,15 +30,22 @@ export const useAddressStore = create<AddressState>((set, get) => ({
   loading: false,
 
   fetchAddresses: async () => {
+    if (get().loading) return;
     set({ loading: true });
     try {
       const data = await getAddressesApi();
-      set({ addresses: data });
-      
-      // Auto-select the first address if none is selected
-      if (data.length > 0 && !get().selectedAddress) {
-        set({ selectedAddress: data[0] });
-      }
+      const list = Array.isArray(data) ? data : [];
+      const prev = get().selectedAddress;
+const prevId = prev ? (prev as Address).id : null;
+const stillValid =
+  prev != null && list.some(a => String(a.id) === String(prevId));
+      const selectedAddress =
+        list.length === 0
+          ? null
+          : stillValid
+            ? prev
+            : list[0];
+      set({ addresses: list, selectedAddress });
     } catch (error) {
       console.error('Failed to fetch addresses:', error);
     } finally {

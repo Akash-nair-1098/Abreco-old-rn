@@ -87,7 +87,12 @@ const ProductCardComponent = ({
     }
   };
 
-  const imageUri = item?.image_urls?.[0]?.url ?? item?.primary_image_url ?? item?.product_image ?? item?.image1 ?? PLACEHOLDER_IMAGES[0];
+  const imageUri =
+    item?.image_urls?.[0]?.url ??
+    item?.primary_image_url ??
+    item?.product_image ??
+    item?.image ??
+    PLACEHOLDER_IMAGES[0];
   const displayPrice = item?.offer_price ?? item?.sale_price ?? item?.price;
   const originalPrice = item?.purchase_price ?? item?.original_price;
   const discount = parseFloat(item?.discount_percentage || '0');
@@ -102,6 +107,11 @@ const ProductCardComponent = ({
     >
       <View style={styles.imageWrapper}>
         <Image source={{ uri: imageUri }} style={styles.productImage} />
+        {isOutOfStock && (
+          <View style={styles.outOfStockBanner} pointerEvents="none">
+            <Text style={styles.outOfStockBannerText}>{t('out_of_stock')}</Text>
+          </View>
+        )}
         {discount > 0 && (
           <View style={styles.badge}>
              <Icon xml={SVG_ICONS.fireIcon} size={10} color="white" />
@@ -172,6 +182,24 @@ const makeStyles = (colors: any, isDark: boolean) =>
       justifyContent: 'center'
     },
     productImage: { width: '100%', height: 110, resizeMode: 'contain' },
+    outOfStockBanner: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      top: '50%',
+      marginTop: -18,
+      backgroundColor: 'rgba(0,0,0,0.72)',
+      paddingVertical: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    outOfStockBannerText: {
+      color: '#FFFFFF',
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+    },
     content: { marginTop: 8 },
     title: { color: colors.text, fontSize: 14, fontWeight: '600', height: 40 },
     priceContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },

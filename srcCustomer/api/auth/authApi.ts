@@ -98,3 +98,11 @@ export const fetchRegistrationStatus = async (user_id: string) => {
   const response = await api.get(`customers/customer-status-summary?user_id=${user_id}`);
   return response.data;
 };
+
+export const submitCustomerInfo = async (data: {
+  secret_token: string;
+  user_id: string;
+}) => {
+  const response = await api.put('customers/submit-customer-info', data);
+  return response.data?.results?.data ?? response.data?.results ?? response.data;
+};

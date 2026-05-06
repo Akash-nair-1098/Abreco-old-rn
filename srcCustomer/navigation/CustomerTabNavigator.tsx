@@ -1,6 +1,9 @@
-import React from 'react';
+import React, {useEffect} from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import CustomHeader from '../components/CustomHeader';
+import { useAuthStore } from '../store/useAuthStore';
+import { useAddressStore } from '../store/useAddressStore';
 import CustomerHomeScreen from '../screens/homeScreen/HomeScreen';
 import CategoryStack from './CategoryStack';
 import OrderHistoryStack from './OrderHistoryStack';
@@ -22,11 +25,25 @@ import SearchStack from './SearchStack';
 
 const Tab = createBottomTabNavigator();
 
+/** Loads saved addresses early so Home shows default delivery without opening the picker. */
+function AddressBootstrapper() {
+  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
+  const fetchAddresses = useAddressStore(state => state.fetchAddresses);
+  useEffect(() => {
+    if (isAuthenticated) {
+      void fetchAddresses();
+    }
+  }, [isAuthenticated, fetchAddresses]);
+  return null;
+}
+
 export function CustomerTabNavigator() {
   const { colors, isDark } = useTheme();
+  const routesToHideSearchBar = ['ProductDetails', 'CartStack', 'Cart', 'Checkout'];
 
   return (
     <>
+      <AddressBootstrapper />
       <Tab.Navigator
         screenOptions={({ route }) => ({
           header: () => {
@@ -34,7 +51,12 @@ export function CustomerTabNavigator() {
             if (route.name === 'Profile') {
               return null;
             }
-            return <CustomHeader title={route.name} />;
+            const nestedRouteName = getFocusedRouteNameFromRoute(route) || '';
+            const shouldHideSearchBar =
+              routesToHideSearchBar.includes(route.name) ||
+              routesToHideSearchBar.includes(nestedRouteName);
+
+            return <CustomHeader title={route.name} hideSearchBar={shouldHideSearchBar} />;
           },
           tabBarStyle: {
             backgroundColor: colors.surface,

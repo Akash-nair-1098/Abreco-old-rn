@@ -9,11 +9,13 @@ import InvoicesScreen from '../screens/profile/InvoiceScreen';
 import LiveOrderScreen from '../screens/orderTrackingScreen/OrderTrackingScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import LegalDocScreen from '../screens/profile/LegalDocsScreen';
+import SOAScreen from '../screens/profile/SOAScreen';
 
 export type ProfileStackParamList = {
   BranchLocationScreen: undefined;
   TransactionScreen: undefined;
   InvoiceScreen: undefined;
+  SOAScreen: undefined;
   OrderTrackingScreen: undefined;
   ProfileScreen: undefined;
   LegalDocScreen: { docType : any};
@@ -30,6 +32,7 @@ const ProfileStack = () => (
       component={BranchLocationScreen}
     />
     <Stack.Screen name="TransactionScreen" component={TransactionScreen} />
+    <Stack.Screen name="SOAScreen" component={SOAScreen} />
     <Stack.Screen name="InvoiceScreen" component={InvoicesScreen} />
     <Stack.Screen name="OrderTrackingScreen" component={LiveOrderScreen} />
     <Stack.Screen name="LegalDocScreen" component={LegalDocScreen} />
