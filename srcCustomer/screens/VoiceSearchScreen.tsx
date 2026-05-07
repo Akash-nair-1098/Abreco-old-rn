@@ -31,8 +31,10 @@ export const VoiceSearchScreen = ({route}: any) => {
   useEffect(() => {
     if (isGlobalSearch) {
       performSearch();
+    } else {
+      setData(initialResults || []);
     }
-  }, [term]);
+  }, [term, isGlobalSearch, initialResults]);
 
   const performSearch = async () => {
     setLoading(true);

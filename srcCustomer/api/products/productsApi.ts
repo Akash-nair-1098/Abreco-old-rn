@@ -182,8 +182,6 @@ export const getVoiceSearchToken = async () => {
   }
 };
 
-
-
 const normalizeSearchTerm = (value: string) =>
   value
     .normalize('NFC')

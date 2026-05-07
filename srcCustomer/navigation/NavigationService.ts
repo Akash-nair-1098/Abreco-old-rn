@@ -4,13 +4,13 @@ import {
   StackActions,
   CommonActions,
 } from '@react-navigation/native';
-import { ProfileStackParamList } from '../navigation/ProfileStack'; // Path to your types
-import { RootStackParamList } from './mainCustomerNavigator';
-import { CartStackParamList } from './CartStack';
-import { CategoryStackParamList } from './CategoryStack';
-import { ProductStackParamList } from './ProductStack';
-import { OrderHistoryStackParamList } from './OrderHistoryStack';
-import { SearchStackParamList } from './SearchStack';
+import type { ProfileStackParamList } from '../navigation/ProfileStack'; // types only
+import type { RootStackParamList } from './mainCustomerNavigator';
+import type { CartStackParamList } from './CartStack';
+import type { CategoryStackParamList } from './CategoryStack';
+import type { ProductStackParamList } from './ProductStack';
+import type { OrderHistoryStackParamList } from './OrderHistoryStack';
+import type { SearchStackParamList } from './SearchStack';
 
 // Combine all possible screens for the global ref
 type AllScreensParamList = RootStackParamList &

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, {useEffect, useState, useRef, useCallback} from 'react';
 import {
   View,
   Text,
@@ -9,65 +9,65 @@ import {
   Animated,
   Modal,
   FlatList,
+  Alert,
+  Platform,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {
   useNavigation,
   useFocusEffect,
   useIsFocused,
-  useNavigationState,
 } from '@react-navigation/native';
-import { useTranslation } from 'react-i18next';
+import {useTranslation} from 'react-i18next';
 import Icon from '../../Icon';
-import { SVG_ICONS } from '../assets/icons/svg';
+import {SVG_ICONS} from '../assets/icons/svg';
 import AddressBottomSheet from '../screens/checkoutScreen/components/AddressBottomsheet';
-import { useAddressStore } from '../store/useAddressStore';
-import { useSearchStore } from '../store/useSearchStore';
-import { useTheme } from '../../ThemeContext';
-import Voice, { SpeechResultsEvent } from '@react-native-voice/voice';
+import {useAddressStore} from '../store/useAddressStore';
+import {useSearchStore} from '../store/useSearchStore';
+import {useTheme} from '../../ThemeContext';
+
 import i18n from '../utilities/i18n';
-import { globalSearchProducts } from '../api/products/productsApi';
-import { getVoiceLocaleForAppLanguage } from '../utilities/voiceLocale';
-import { useVoiceEpochStore } from '../store/useVoiceEpochStore';
+import {globalSearchProducts} from '../api/products/productsApi';
+import {getVoiceLocaleForAppLanguage} from '../utilities/voiceLocale';
+import {startVoiceRecording, stopVoiceRecording} from '../utilities/audioRecord';
+import {transcribeWithOpenAI} from '../utilities/openaiTranscribe';
 
 const LANGUAGES = [
-  { code: 'en', label: 'English' },
-  { code: 'ar', label: 'العربية' },
-  { code: 'hi', label: 'हिन्दी' },
-  { code: 'ml', label: 'മലയാളം' },
-  { code: 'es', label: 'Español' },
-  { code: 'zh-CN', label: '中文' },
+  {code: 'en', label: 'English'},
+  {code: 'ar', label: 'العربية'},
+  {code: 'hi', label: 'हिन्दी'},
+  {code: 'ml', label: 'മലയാളം'},
+  {code: 'es', label: 'Español'},
+  {code: 'zh-CN', label: '中文'},
 ];
 
-const CustomHeader = ({
-  title: _title,
-  hideSearchBar = false,
-}: {
-  title: string;
-  hideSearchBar?: boolean;
-}) => {
-  const { t } = useTranslation();
-  const { colors, isDark } = useTheme();
+const CustomHeader = ({hideSearchBar = false}: {hideSearchBar?: boolean}) => {
+  const {t} = useTranslation();
+  const {colors, isDark} = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const isFocused = useIsFocused();
-  const voiceListeningEpoch = useVoiceEpochStore(s => s.epoch);
 
-  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const localTranscriptRef = useRef('');
-  const hasSearchedFromVoiceRef = useRef(false);
+  const {setSelectedAddress, selectedAddress} = useAddressStore();
+  const {searchText, setSearchText} = useSearchStore();
 
   const [isSheetVisible, setSheetVisible] = useState(false);
   const [isLangSheetVisible, setLangSheetVisible] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [localInput, setLocalInput] = useState('');
 
-  const { setSelectedAddress, selectedAddress } = useAddressStore();
-  const { searchText, setSearchText } = useSearchStore();
-
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const styles = headerStyles(colors, isDark);
-  const voiceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const hasSearchedRef = useRef(false);
+  const latestTranscriptRef = useRef('');
+
+  const cleanupVoice = useCallback(async () => {
+    setIsListening(false);
+    hasSearchedRef.current = false;
+    latestTranscriptRef.current = '';
+    pulseAnim.setValue(1);
+  }, []);
 
   useEffect(() => {
     setLocalInput(searchText);
@@ -77,8 +77,16 @@ const CustomHeader = ({
     if (isListening) {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.5, duration: 800, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+          Animated.timing(pulseAnim, {
+            toValue: 1.5,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
         ]),
       ).start();
     } else {
@@ -86,169 +94,107 @@ const CustomHeader = ({
     }
   }, [isListening]);
 
-  /** Release mic without tearing down native engine (FAB may take over briefly). */
-  const detachHeaderVoice = useCallback(async () => {
-    if (voiceTimeoutRef.current) clearTimeout(voiceTimeoutRef.current);
-    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-    try {
-      await Voice.stop();
-      await Voice.cancel();
-    } catch {
-      /* empty */
-    } finally {
-      Voice.removeAllListeners();
-      setIsListening(false);
-    }
-  }, []);
-
-  const currentRouteName = useNavigationState(state => {
-    const route = state.routes[state.index];
-    // Handle nested navigators
-    if (route.state) {
-      const nestedRoute = route.state.routes[route.state.index ?? 0];
-      return nestedRoute?.name;
-    }
-    return route.name;
-  });
-
-  /** Session end / error — resets native Voice so future starts succeed. */
-  const stopMicSessionHard = useCallback(async () => {
-    if (voiceTimeoutRef.current) clearTimeout(voiceTimeoutRef.current);
-    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-    try {
-      await Voice.stop();
-      await Voice.destroy();
-    } catch {
-      /* empty */
-    } finally {
-      Voice.removeAllListeners();
-      setIsListening(false);
-    }
-  }, []);
-
   useFocusEffect(
     useCallback(() => {
-      return () => {
-        setLocalInput('');
-        setSearchText('');
-        void detachHeaderVoice();
-      };
-    }, [detachHeaderVoice, setSearchText]),
+      return () => cleanupVoice();
+    }, [cleanupVoice]),
   );
-
-  const handleSearchSubmit = useCallback(
-    async (textToSearch?: string, localFallback?: string) => {
-      const finalQuery = (textToSearch ?? localFallback ?? '')
-        .normalize('NFC')
-        .replace(/\s+/g, ' ')
-        .trim();
-      setSearchText(finalQuery);
-      if (!finalQuery) return;
-
-      if (!hideSearchBar) {
-        try {
-          const results = await globalSearchProducts(finalQuery);
-          navigation.navigate('SearchStack', {
-            screen: 'VoiceSearchScreen',
-            params: {
-              results: results || [],
-              term: finalQuery,
-              isGlobalSearch: results?.length === 0,
-            },
-          });
-        } catch {
-          navigation.navigate('SearchStack', {
-            screen: 'VoiceSearchScreen',
-            params: {
-              results: [],
-              term: finalQuery,
-              isGlobalSearch: true,
-            },
-          });
-        }
-      }
-    },
-    [hideSearchBar, navigation, setSearchText],
-  );
-
-  const handleSearchSubmitRef = useRef(handleSearchSubmit);
-  handleSearchSubmitRef.current = handleSearchSubmit;
-
-  useEffect(() => {
-    if (!isFocused || hideSearchBar) {
-      detachHeaderVoice();
-      return undefined;
-    }
-
-    Voice.onSpeechStart = () => {
-      setIsListening(true);
-      localTranscriptRef.current = '';
-      setLocalInput('');
-      hasSearchedFromVoiceRef.current = false;
-      if (voiceTimeoutRef.current) clearTimeout(voiceTimeoutRef.current);
-      voiceTimeoutRef.current = setTimeout(() => {
-        void stopMicSessionHard();
-      }, 15000);
-    };
-
-    Voice.onSpeechPartialResults = (e: SpeechResultsEvent) => {
-      if (e.value && e.value.length > 0) {
-        const newText = e.value[e.value.length - 1];
-        setLocalInput(newText);
-        localTranscriptRef.current = newText;
-        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-        silenceTimerRef.current = setTimeout(() => {
-          if (!hasSearchedFromVoiceRef.current) {
-            hasSearchedFromVoiceRef.current = true;
-            void handleSearchSubmitRef.current(localTranscriptRef.current);
-          }
-          void stopMicSessionHard();
-        }, 4000);
-      }
-    };
-
-    Voice.onSpeechResults = (e: SpeechResultsEvent) => {
-      if (e.value && e.value.length > 0 && !hasSearchedFromVoiceRef.current) {
-        const finalText = e.value[0];
-        setLocalInput(finalText);
-        localTranscriptRef.current = finalText;
-        hasSearchedFromVoiceRef.current = true;
-        void handleSearchSubmitRef.current(finalText);
-      }
-    };
-
-    Voice.onSpeechError = () => {
-      void stopMicSessionHard();
-    };
-
-    return () => {
-      void detachHeaderVoice();
-    };
-  }, [detachHeaderVoice, hideSearchBar, isFocused, stopMicSessionHard, voiceListeningEpoch]);
 
   const toggleVoiceSearch = async () => {
-    try {
-      if (isListening) {
-        await stopMicSessionHard();
-      } else {
-        await Voice.destroy();
-        Voice.removeAllListeners();
-        setLocalInput('');
-        setSearchText('');
-        setIsListening(true);
+    if (isListening) {
+      // Stop recording -> transcribe -> search
+      try {
+        const stopped = await stopVoiceRecording();
+        if (!stopped.ok) throw new Error(stopped.error);
 
-        const currentLocale = getVoiceLocaleForAppLanguage(i18n.language);
-        await Voice.start(currentLocale);
+        const locale = getVoiceLocaleForAppLanguage(i18n.language);
+        const res = await transcribeWithOpenAI({
+          audioFilePath: stopped.filePath,
+          languageHint: locale,
+        });
+        if (!res.ok) throw new Error(res.error);
+
+        await handleVoiceSearchComplete(res.text);
+      } catch (err: any) {
+        Alert.alert('Voice Error', err?.message || 'Voice recognition failed');
+        cleanupVoice();
       }
-    } catch {
-      setIsListening(false);
+      return;
+    }
+
+    try {
+      await cleanupVoice();
+
+      const locale = getVoiceLocaleForAppLanguage(i18n.language);
+      console.log('🎤 Header Voice Started with:', locale);
+
+      setIsListening(true);
+      setLocalInput('');
+      hasSearchedRef.current = false;
+
+      const started = await startVoiceRecording();
+      if (!started.ok) throw new Error(started.error);
+    } catch (err: any) {
+      console.error(err);
+      Alert.alert(
+        'Voice Error',
+        err?.message || 'Voice recognition failed',
+      );
+      cleanupVoice();
     }
   };
 
-  const handleBarcodeScan = () => {
-    navigation.navigate('SearchStack', {
-      screen: 'BarcodeSearchScreen',
-    });
+  const handleVoiceSearchComplete = async (text: string) => {
+    const finalQuery = text.trim();
+    if (!finalQuery) {
+      cleanupVoice();
+      return;
+    }
+
+    setLocalInput(finalQuery);
+    setSearchText(finalQuery);
+
+    try {
+      const results = await globalSearchProducts(finalQuery);
+      navigation.navigate('SearchStack', {
+        screen: 'VoiceSearchScreen',
+        params: {
+          results: results || [],
+          term: finalQuery,
+          isGlobalSearch: true,
+        },
+      });
+    } catch {
+      navigation.navigate('SearchStack', {
+        screen: 'VoiceSearchScreen',
+        params: {results: [], term: finalQuery, isGlobalSearch: true},
+      });
+    } finally {
+      cleanupVoice();
+    }
+  };
+
+  const handleSearchSubmit = async () => {
+    const finalQuery = localInput.trim();
+    if (!finalQuery || hideSearchBar) return;
+
+    setSearchText(finalQuery);
+    try {
+      const results = await globalSearchProducts(finalQuery);
+      navigation.navigate('SearchStack', {
+        screen: 'VoiceSearchScreen',
+        params: {
+          results: results || [],
+          term: finalQuery,
+          isGlobalSearch: true,
+        },
+      });
+    } catch {
+      navigation.navigate('SearchStack', {
+        screen: 'VoiceSearchScreen',
+        params: {results: [], term: finalQuery, isGlobalSearch: true},
+      });
+    }
   };
 
   const clearSearch = () => {
@@ -262,15 +208,21 @@ const CustomHeader = ({
   };
 
   return (
-    <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
+    <View style={[styles.headerContainer, {paddingTop: insets.top + 10}]}>
       <View style={styles.topRow}>
-        <TouchableOpacity onPress={() => setSheetVisible(true)} style={styles.locationContainer}>
+        <TouchableOpacity
+          onPress={() => setSheetVisible(true)}
+          style={styles.locationContainer}>
           <View style={styles.iconCircle}>
-            <Icon xml={SVG_ICONS.locationPin} color={colors.primary} size={18} />
+            <Icon
+              xml={SVG_ICONS.locationPin}
+              color={colors.primary}
+              size={18}
+            />
           </View>
-          <View style={{ marginLeft: 8 }}>
+          <View style={{marginLeft: 8}}>
             <Text style={styles.deliverLabel}>{t('deliver_to')}</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{flexDirection: 'row', alignItems: 'center'}}>
               <Text style={styles.locationText} numberOfLines={1}>
                 {selectedAddress?.location_name || t('select_location')}
               </Text>
@@ -280,16 +232,21 @@ const CustomHeader = ({
         </TouchableOpacity>
 
         <View style={styles.actionButtons}>
-          <TouchableOpacity onPress={() => setLangSheetVisible(true)} style={styles.iconButton}>
+          <TouchableOpacity
+            onPress={() => setLangSheetVisible(true)}
+            style={styles.iconButton}>
             <Icon xml={SVG_ICONS.languageIcon} color={colors.text} size={20} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('WishlistScreen')} style={styles.iconButton}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('WishlistScreen')}
+            style={styles.iconButton}>
             <Icon xml={SVG_ICONS.heart} color={colors.text} size={20} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('CartStack')} style={styles.iconButton}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('CartStack')}
+            style={styles.iconButton}>
             <Icon xml={SVG_ICONS.cart} color={colors.text} size={20} />
           </TouchableOpacity>
-          {/* Restored Notification Icon */}
           <TouchableOpacity style={styles.iconButton}>
             <Icon xml={SVG_ICONS.notification} color={colors.text} size={20} />
           </TouchableOpacity>
@@ -299,80 +256,91 @@ const CustomHeader = ({
       {!hideSearchBar && (
         <View style={styles.searchSection}>
           <Icon xml={SVG_ICONS.searchLens} color={colors.textMuted} size={18} />
+
           <TextInput
             style={styles.input}
             placeholder={isListening ? t('listening') : t('search_placeholder')}
-            placeholderTextColor={isListening ? colors.primary : colors.textMuted}
+            placeholderTextColor={
+              isListening ? colors.primary : colors.textMuted
+            }
             value={localInput}
-            numberOfLines={1}
             onChangeText={setLocalInput}
             editable={!isListening}
             returnKeyType="search"
-            onBlur={() => handleSearchSubmit(undefined, localInput)}
-            onSubmitEditing={() => handleSearchSubmit(undefined, localInput)}
+            onSubmitEditing={handleSearchSubmit}
           />
 
           {localInput.length > 0 && !isListening && (
-            <Pressable style={{ paddingHorizontal: 8 }} onPress={clearSearch}>
-              <Icon xml={SVG_ICONS.closeIcon} size={18} color={colors.textMuted} />
+            <Pressable style={{paddingHorizontal: 8}} onPress={clearSearch}>
+              <Icon
+                xml={SVG_ICONS.closeIcon}
+                size={18}
+                color={colors.textMuted}
+              />
             </Pressable>
           )}
 
-          <TouchableOpacity onPress={handleBarcodeScan} style={styles.searchActionButton}>
-            <Icon xml={SVG_ICONS.barcodeScan} color={colors.textMuted} size={18} />
+          <TouchableOpacity style={styles.searchActionButton}>
+            <Icon
+              xml={SVG_ICONS.barcodeScan}
+              color={colors.textMuted}
+              size={18}
+            />
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={toggleVoiceSearch} style={styles.micButton}>
+          <TouchableOpacity
+            onPress={toggleVoiceSearch}
+            style={styles.micButton}>
             {isListening && (
               <Animated.View
-                style={[
-                  styles.pulseCircle,
-                  {
-                    transform: [{ scale: pulseAnim }],
-                    opacity: pulseAnim.interpolate({
-                      inputRange: [1, 1.5],
-                      outputRange: [0.5, 0],
-                    }),
-                  },
-                ]}
+                style={[styles.pulseCircle, {transform: [{scale: pulseAnim}]}]}
               />
             )}
-            <Icon xml={SVG_ICONS.micIcon} color={isListening ? colors.primary : colors.textMuted} size={22} />
+            <Icon
+              xml={SVG_ICONS.micIcon}
+              color={isListening ? colors.primary : colors.textMuted}
+              size={22}
+            />
           </TouchableOpacity>
         </View>
       )}
 
-      {/* Language Selection Bottom Sheet */}
+      {/* Language Selection Modal */}
       <Modal
         visible={isLangSheetVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setLangSheetVisible(false)}
-      >
-        <Pressable style={styles.modalOverlay} onPress={() => setLangSheetVisible(false)}>
+        onRequestClose={() => setLangSheetVisible(false)}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setLangSheetVisible(false)}>
           <View style={styles.langSheet}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>{t('select_language')}</Text>
             </View>
             <FlatList
               data={LANGUAGES}
-              keyExtractor={(item) => item.code}
-              renderItem={({ item }) => (
+              keyExtractor={item => item.code}
+              renderItem={({item}) => (
                 <TouchableOpacity
                   style={[
                     styles.langItem,
                     i18n.language === item.code && styles.activeLangItem,
                   ]}
-                  onPress={() => changeLanguage(item.code)}
-                >
-                  <Text style={[
-                    styles.langLabel,
-                    i18n.language === item.code && styles.activeLangLabel
-                  ]}>
+                  onPress={() => changeLanguage(item.code)}>
+                  <Text
+                    style={[
+                      styles.langLabel,
+                      i18n.language === item.code && styles.activeLangLabel,
+                    ]}>
                     {item.label}
                   </Text>
                   {i18n.language === item.code && (
-                    <Icon xml={SVG_ICONS.successIcon} color={colors.primary} size={20} />
+                    <Icon
+                      xml={SVG_ICONS.successIcon}
+                      color={colors.primary}
+                      size={20}
+                    />
                   )}
                 </TouchableOpacity>
               )}
@@ -384,7 +352,7 @@ const CustomHeader = ({
       <AddressBottomSheet
         visible={isSheetVisible}
         onClose={() => setSheetVisible(false)}
-        onSelect={addr => {
+        onSelect={(addr: any) => {
           setSelectedAddress(addr);
           setSheetVisible(false);
         }}
@@ -395,29 +363,120 @@ const CustomHeader = ({
 
 const headerStyles = (colors: any, isDark: boolean) =>
   StyleSheet.create({
-    headerContainer: { backgroundColor: colors.background, paddingHorizontal: 16, paddingBottom: 15 },
-    topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
-    locationContainer: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-    iconCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.border },
-    deliverLabel: { color: colors.textMuted, fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase' },
-    locationText: { color: colors.text, fontSize: 14, fontWeight: '600', maxWidth: 120, marginRight: 4 },
-    actionButtons: { flexDirection: 'row', gap: 8 },
-    iconButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.border },
-    searchSection: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 12, paddingHorizontal: 12, height: 48, borderWidth: isDark ? 0 : 1, borderColor: colors.border },
-    input: { flex: 1, color: colors.text, fontSize: 15, marginLeft: 10, height: '100%' },
-    searchActionButton: { width: 32, height: 32, justifyContent: 'center', alignItems: 'center' },
-    micButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', position: 'relative' },
-    pulseCircle: { position: 'absolute', width: 30, height: 30, borderRadius: 15, backgroundColor: colors.primary },
-    
-    // Language Sheet Styles
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-    langSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 40, maxHeight: '50%' },
-    sheetHeader: { padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border, alignItems: 'center' },
-    sheetTitle: { fontSize: 18, fontWeight: 'bold', color: colors.text },
-    langItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 0.5, borderBottomColor: colors.border },
-    activeLangItem: { backgroundColor: `${colors.primary}10` },
-    langLabel: { fontSize: 16, color: colors.text },
-    activeLangLabel: { color: colors.primary, fontWeight: 'bold' },
+    headerContainer: {
+      backgroundColor: colors.background,
+      paddingHorizontal: 16,
+      paddingBottom: 15,
+    },
+    topRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 15,
+    },
+    locationContainer: {flexDirection: 'row', alignItems: 'center', flex: 1},
+    iconCircle: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.surface,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    deliverLabel: {
+      color: colors.textMuted,
+      fontSize: 10,
+      fontWeight: 'bold',
+      textTransform: 'uppercase',
+    },
+    locationText: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: '600',
+      maxWidth: 120,
+      marginRight: 4,
+    },
+    actionButtons: {flexDirection: 'row', gap: 8},
+    iconButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.surface,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    searchSection: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      height: 48,
+      borderWidth: isDark ? 0 : 1,
+      borderColor: colors.border,
+    },
+    input: {
+      flex: 1,
+      color: colors.text,
+      fontSize: 15,
+      marginLeft: 10,
+      height: '100%',
+    },
+    searchActionButton: {
+      width: 32,
+      height: 32,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    micButton: {
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+      position: 'relative',
+    },
+    pulseCircle: {
+      position: 'absolute',
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: colors.primary,
+      opacity: 0.3,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'flex-end',
+    },
+    langSheet: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingBottom: 40,
+      maxHeight: '50%',
+    },
+    sheetHeader: {
+      padding: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      alignItems: 'center',
+    },
+    sheetTitle: {fontSize: 18, fontWeight: 'bold', color: colors.text},
+    langItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 20,
+      borderBottomWidth: 0.5,
+      borderBottomColor: colors.border,
+    },
+    activeLangItem: {backgroundColor: `${colors.primary}10`},
+    langLabel: {fontSize: 16, color: colors.text},
+    activeLangLabel: {color: colors.primary, fontWeight: 'bold'},
   });
 
 export default CustomHeader;
