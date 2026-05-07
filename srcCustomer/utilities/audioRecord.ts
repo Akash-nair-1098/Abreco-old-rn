@@ -1,5 +1,6 @@
 import AudioRecord from 'react-native-audio-record';
 import RNFS from 'react-native-fs';
+import {PermissionsAndroid, Platform} from 'react-native';
 
 type RecordState = {
   isRecording: boolean;
@@ -15,8 +16,27 @@ function buildOutputPath(): string {
   return `${dir}/voice_search_${Date.now()}.wav`;
 }
 
+async function ensureMicrophonePermission(): Promise<
+  {ok: true} | {ok: false; error: string}
+> {
+  if (Platform.OS !== 'android') return {ok: true};
+
+  try {
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+    );
+    if (granted === PermissionsAndroid.RESULTS.GRANTED) return {ok: true};
+    return {ok: false, error: 'Microphone permission denied'};
+  } catch (e: any) {
+    return {ok: false, error: e?.message || 'Failed to request microphone permission'};
+  }
+}
+
 export async function startVoiceRecording(): Promise<{ok: true} | {ok: false; error: string}> {
   if (state.isRecording) return {ok: true};
+
+  const perm = await ensureMicrophonePermission();
+  if (!perm.ok) return perm;
 
   const filePath = buildOutputPath();
   try {

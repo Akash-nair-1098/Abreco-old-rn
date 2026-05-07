@@ -86,7 +86,7 @@ const AddressBottomSheet = ({
         if (!fullAddress) setFullAddress(addressName);
       }
     } catch (error) {
-      console.error(error);
+      // console.error(error);
       showToast('Could not fetch location.', 'error');
     } finally {
       setIsLocating(false);

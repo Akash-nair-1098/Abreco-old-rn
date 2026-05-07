@@ -21,7 +21,7 @@ const SubCategoryScreen = ({ navigation, route }: any) => {
 
   // Title from previous navigation
   const categoryTitle = route.params?.title || 'Collections';
-  console.log('params is', route.params)
+  // console.log('params is', route.params)
 
   useEffect(() => {
     if (route.params?.subCategories) {

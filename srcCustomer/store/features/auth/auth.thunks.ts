@@ -54,7 +54,7 @@ export const fetchRolesThunk = createAsyncThunk(
   'auth/fetchRoles',
   async (_, { rejectWithValue }) => {
     try {
-      console.log('role api called');
+      // console.log('role api called');
       const response = await getRole(); 
       // API returns: { message: "Success", results: { data: [...] } }
       return response;
@@ -64,7 +64,7 @@ export const fetchRolesThunk = createAsyncThunk(
         error.message ||
         'Failed to fetch roles';
 
-      console.error('Role fetch error:', message);
+      // console.error('Role fetch error:', message);
       return rejectWithValue(message);
     }
   },

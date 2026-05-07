@@ -37,7 +37,7 @@ const CategoryProductListing = ({ navigation, route }: any) => {
       });
       setProducts(results);
     } catch (error) {
-      console.error('Failed to fetch products', error);
+      // console.error('Failed to fetch products', error);
     } finally {
       setLoading(false);
     }

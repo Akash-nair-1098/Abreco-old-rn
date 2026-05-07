@@ -90,6 +90,7 @@ const ProductListingScreen = ({ navigation, route }: any) => {
 
       if (isInitial) {
         setProducts(results || []);
+        // console.log('products is', results);
       } else {
         setProducts(prev => [...prev, ...results]);
       }

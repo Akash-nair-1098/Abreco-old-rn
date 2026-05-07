@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import {
   View,
   Text,
-  Image,
   TouchableOpacity,
   StyleSheet,
   Pressable,
@@ -10,6 +9,7 @@ import {
   Platform,
   Dimensions,
 } from 'react-native';
+import FastImage from 'react-native-fast-image';
 import { useTranslation } from 'react-i18next';
 import Icon from '../../Icon';
 import { SVG_ICONS } from '../assets/icons/svg';
@@ -49,7 +49,18 @@ const ProductCardComponent = ({
   const { t } = useTranslation();
   const { showToast } = useToast();
 
-  const isOutOfStock = item.stock_status === 'out_of_stock';
+  const normalizedStockStatus = String(item?.stock_status || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_');
+  const isOutOfStock = normalizedStockStatus === 'out_of_stock';
+  const isLowStock =
+    normalizedStockStatus === 'low_stock' ||
+    normalizedStockStatus === 'lowstock' ||
+    normalizedStockStatus === 'limited_stock';
+  const isInStock =
+    normalizedStockStatus === 'in_stock' ||
+    normalizedStockStatus === 'instock';
   const addToCart = useCartStore(state => state.addItem);
   const loading = useCartStore(state => state.loading);
   const cartItems = useCartStore(state => state.items || []);
@@ -102,11 +113,38 @@ const ProductCardComponent = ({
 
   return (
     <Pressable
-      onPress={() => NavigationService.navigate('ProductDetails', { id: productId })}
-      style={[styles.cardContainer, { width: finalWidth }]}
+      onPress={() =>
+        (NavigationService.navigate as (n: string, p?: object) => void)(
+          'ProductDetails',
+          {id: productId},
+        )
+      }
+      style={[styles.cardContainer, {width: finalWidth as any}]}
     >
       <View style={styles.imageWrapper}>
-        <Image source={{ uri: imageUri }} style={styles.productImage} />
+        <FastImage
+          source={{uri: imageUri, priority: FastImage.priority.normal}}
+          style={styles.productImage}
+          resizeMode={FastImage.resizeMode.contain}
+        />
+        <View
+          style={[
+            styles.stockPill,
+            isOutOfStock
+              ? styles.stockPillOut
+              : isLowStock
+                ? styles.stockPillLow
+                : styles.stockPillIn,
+          ]}
+          pointerEvents="none">
+          <Text style={styles.stockPillText}>
+            {isOutOfStock
+              ? t('out_of_stock')
+              : isLowStock
+                ? t('low_stock')
+                : t('in_stock')}
+          </Text>
+        </View>
         {isOutOfStock && (
           <View style={styles.outOfStockBanner} pointerEvents="none">
             <Text style={styles.outOfStockBannerText}>{t('out_of_stock')}</Text>
@@ -182,6 +220,23 @@ const makeStyles = (colors: any, isDark: boolean) =>
       justifyContent: 'center'
     },
     productImage: { width: '100%', height: 110, resizeMode: 'contain' },
+    stockPill: {
+      position: 'absolute',
+      top: 8,
+      right: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 999,
+      shadowColor: '#000',
+      shadowOffset: {width: 0, height: 2},
+      shadowOpacity: 0.18,
+      shadowRadius: 3,
+      elevation: 2,
+    },
+    stockPillIn: {backgroundColor: colors.success},
+    stockPillLow: {backgroundColor: '#F59E0B'},
+    stockPillOut: {backgroundColor: colors.danger},
+    stockPillText: {color: '#FFFFFF', fontSize: 10, fontWeight: '800'},
     outOfStockBanner: {
       position: 'absolute',
       left: 0,

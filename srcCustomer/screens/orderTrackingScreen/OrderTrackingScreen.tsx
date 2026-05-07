@@ -44,7 +44,7 @@ const LiveOrderScreen = ({ navigation, route }: any) => {
         setOrderData(response);
       }
     } catch (error) {
-      console.error('Tracking Fetch Error:', error);
+      // console.error('Tracking Fetch Error:', error);
     } finally {
       setLoading(false);
     }

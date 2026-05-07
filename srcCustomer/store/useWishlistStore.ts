@@ -52,7 +52,7 @@ export const useWishlistStore = create<WishlistState>()(
             isInitialized: true,
           });
         } catch (error) {
-          console.error('Wishlist Fetch Error:', error);
+          // console.error('Wishlist Fetch Error:', error);
           set({ wishlist: [] }); // Fallback to empty array on error to prevent crash
            throw error; 
         } finally {

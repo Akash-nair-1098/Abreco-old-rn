@@ -101,7 +101,7 @@ export const AddContactsScreen = ({ route }: any) => {
         }
       }
     } catch (e) {
-      console.log("Error loading saved contacts", e);
+      // console.log("Error loading saved contacts", e);
     } finally {
       setFetchingData(false);
     }

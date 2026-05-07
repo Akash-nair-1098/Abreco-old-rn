@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useRef} from 'react';
+import React, {useState, useRef} from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   Pressable,
   Vibration,
   ActivityIndicator,
-  Platform,
   Alert,
 } from 'react-native';
 
@@ -15,14 +14,14 @@ import {useTranslation} from 'react-i18next';
 import {useTheme} from '../../ThemeContext';
 import Icon from '../../Icon';
 import {SVG_ICONS} from '../assets/icons/svg';
-import {globalSearchProducts} from '../api/products/productsApi';
 import {useCartStore} from '../store/useCartStore';
 import {useSearchStore} from '../store/useSearchStore';
 import {useToast} from './ToastContext';
 import * as NavigationService from '../navigation/NavigationService';
 import {getVoiceLocaleForAppLanguage} from '../utilities/voiceLocale';
 import {startVoiceRecording, stopVoiceRecording} from '../utilities/audioRecord';
-import {transcribeWithOpenAI} from '../utilities/openaiTranscribe';
+import {transcribeWithGemini} from '../utilities/geminiTranscribe';
+import {runVoiceSearchFromTranscript} from '../utilities/voiceSearchFromTranscript';
 
 export const VoiceSearchFloatingUI = () => {
   const {t, i18n} = useTranslation();
@@ -44,8 +43,7 @@ export const VoiceSearchFloatingUI = () => {
   const hasProcessed = useRef(false);
   const silenceTimer = useRef<NodeJS.Timeout | null>(null);
 
-  // We intentionally do NOT use on-device speech engines for accuracy/locale issues.
-  // Online Whisper is used for all languages.
+  // Cloud transcription via Google Gemini (multilingual); no on-device STT.
 
   const cleanup = async () => {
     if (silenceTimer.current) {
@@ -97,12 +95,11 @@ export const VoiceSearchFloatingUI = () => {
       const started = await startVoiceRecording();
       if (!started.ok) throw new Error(started.error);
     } catch (err: any) {
-      console.error(err);
+      // console.error(err);
       Alert.alert(
         'Voice Error',
-        Platform.OS === 'android'
-          ? 'Make sure Google app is installed and updated for Malayalam support.'
-          : 'Speech recognition not available on this device.',
+        err?.message ||
+          'Could not start recording. Allow microphone access and try again.',
       );
       cleanup();
     }
@@ -120,71 +117,36 @@ export const VoiceSearchFloatingUI = () => {
       setTranscript(t('searching') || 'Searching...');
 
       const locale = getVoiceLocaleForAppLanguage(i18n.language);
-      const res = await transcribeWithOpenAI({
+      const res = await transcribeWithGemini({
         audioFilePath: stopped.filePath,
         languageHint: locale,
       });
-      console.log('🎤 res is', res);
+      // console.log('🎤 res is', res);
       if (!res.ok) throw new Error(res.error);
-     
 
-      await processFinal(res.text);
+      await runVoiceSearchFromTranscript(res.text, {
+        setSearchText,
+        showToast,
+        t,
+        enableAddToCartIntent: true,
+        addToCart,
+        onResults: (term, results) =>
+          (NavigationService.navigate as (n: string, p?: object) => void)(
+            'SearchStack',
+            {
+              screen: 'VoiceSearchScreen',
+              params: {results, term, isGlobalSearch: true},
+            },
+          ),
+      });
     } catch (e: any) {
-      console.log('🎤 Error:', err);
+      // console.log('🎤 e is', e);
+      if (__DEV__) console.log('Voice transcribe error:', e);
       // Prefer the real error message so iOS issues aren't masked by translation strings.
       showToast(e?.message || t('voice_error_message') || 'Voice recognition failed', 'error');
     } finally {
       setIsProcessing(false);
       cleanup();
-    }
-  };
-
-  const processFinal = async (text: string) => {
-    if (isProcessing || !text?.trim()) return;
-
-    // Note: `handlePressOut` sets `isProcessing` while we transcribe.
-    // We set it again here to cover any other call sites.
-    setIsProcessing(true);
-    const lowerText = text.toLowerCase().trim();
-
-    try {
-      const addTriggers = ['add', 'cart', 'ചേർക്കുക', 'ചേർക്ക്', 'add to cart'];
-      const isAddIntent = addTriggers.some(tr => lowerText.includes(tr));
-
-      let searchTerm = text;
-      if (isAddIntent) {
-        addTriggers.forEach(tr => {
-          searchTerm = searchTerm.replace(new RegExp(tr, 'gi'), '');
-        });
-      }
-      searchTerm = searchTerm.trim();
-
-      if (!searchTerm) return;
-
-      const results = await globalSearchProducts(searchTerm);
-
-      if (isAddIntent && results?.length === 1) {
-        await addToCart(results[0], 1);
-        showToast(
-          t('added_to_cart_success', {
-            item: results[0].name || results[0].title,
-          }),
-          'success',
-        );
-      } else if (results?.length > 0) {
-        setSearchText(searchTerm);
-        NavigationService.navigate('SearchStack', {
-          screen: 'VoiceSearchScreen',
-          params: {results, term: searchTerm, isGlobalSearch: true},
-        });
-      } else {
-        showToast(t('no_products_found'), 'warning');
-      }
-    } catch (err) {
-      console.log('🎤 Error:', err);
-      showToast((err as any)?.message || t('voice_error_message'), 'error');
-    } finally {
-      setIsProcessing(false);
     }
   };
 

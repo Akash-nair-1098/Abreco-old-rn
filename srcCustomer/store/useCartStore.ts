@@ -130,7 +130,7 @@ export const useCartStore = create<CartState>()(
           set({ loading: false });
         } catch (error) {
           set({ loading: false });
-          console.error('Delete failed', error);
+          // console.error('Delete failed', error);
           throw error;
         }
       },
@@ -149,7 +149,7 @@ export const useCartStore = create<CartState>()(
           });
         } catch (error) {
           set({ loading: false });
-          console.error('fetch failed', error);
+          // console.error('fetch failed', error);
           throw error;
         } finally {
           set({ loading: false });

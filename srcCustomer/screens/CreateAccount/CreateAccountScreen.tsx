@@ -331,18 +331,18 @@ const CreateAccountScreen = ({ navigation }: any) => {
               onPress={handleRegister}
               style={[styles.btnWrapper, !agreed && { opacity: 0.7 }]}
             >
-              <LinearGradient
+              {/* <LinearGradient
                 colors={['#EF4444', colors.primary]} // Mixed fixed Red with primary theme color
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.gradientBtn}
-              >
+              > */}
                 {loading ? (
                   <ActivityIndicator color="white" />
                 ) : (
                   <Text style={styles.btnText}>Create & Continue</Text>
                 )}
-              </LinearGradient>
+              {/* </LinearGradient> */}
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -413,7 +413,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   },
   checkboxLabel: { color: colors.textMuted, fontSize: 14, flex: 1 },
   link: { color: colors.primary, fontWeight: '600' },
-  btnWrapper: { marginTop: 32 },
+  btnWrapper: { marginTop: 32 ,backgroundColor:"#FC0808",},
   gradientBtn: {
     height: 55,
     borderRadius: 12,

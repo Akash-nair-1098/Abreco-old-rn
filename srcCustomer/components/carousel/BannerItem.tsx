@@ -2,11 +2,11 @@ import React from 'react';
 import {
   View,
   Text,
-  ImageBackground,
   StyleSheet,
   TouchableOpacity,
   Platform,
 } from 'react-native';
+import FastImage from 'react-native-fast-image';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../../ThemeContext';
 import { useNavigation } from '@react-navigation/native';
@@ -15,7 +15,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 export interface BannerData {
   title: string;
   subtitle: string;
-  offerTag: string;
+  offerTag?: string;
+  discount_text?: string;
   background_image_url: string; // URL string from API
   buttonColor?: string;
   id: string;
@@ -39,20 +40,35 @@ const BannerItem = ({ item }: { item: BannerData }) => {
     });
   };
 
+  const discountLabel = (() => {
+    const raw = String(item.discount_text ?? '').trim();
+    if (!raw) return '';
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return '';
+    return `${n.toFixed(2)}% OFF`;
+  })();
+
   return (
-    <ImageBackground
-      resizeMode="contain"
-      source={{uri: item.background_image_url}}
-      style={styles.container}
-      imageStyle={styles.image}>
+    <View style={styles.container}>
+      <FastImage
+        source={{uri: item.background_image_url, priority: FastImage.priority.normal}}
+        style={styles.image}
+      />
       {/* Dynamic Overlay to ensure text readability regardless of image brightness */}
-      <View style={styles.overlay}>
+      <View style={styles.overlay} pointerEvents="box-none">
         {/* Offer Tag */}
-        {item.offerTag && (
+        {item.offerTag ? (
           <View style={styles.tag}>
             <Text style={styles.tagText}>{item.offerTag}</Text>
           </View>
-        )}
+        ) : null}
+
+        {/* Discount */}
+        {discountLabel ? (
+          <View style={styles.discountBadge}>
+            <Text style={styles.discountBadgeText}>{discountLabel}</Text>
+          </View>
+        ) : null}
 
         {/* Text Content */}
         <Text style={styles.title} numberOfLines={1}>
@@ -75,7 +91,7 @@ const BannerItem = ({ item }: { item: BannerData }) => {
           </Text>
         </TouchableOpacity>
       </View>
-    </ImageBackground>
+    </View>
   );
 };
 
@@ -89,10 +105,17 @@ const makeStyles = (colors: any, isDark: boolean) =>
       overflow: 'hidden',
     },
     image: {
+      width: '100%',
+      height: '100%',
       borderRadius: 12,
-      resizeMode: 'stretch',
+      resizeMode: 'stretch'
     },
     overlay: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      top: 0,
+      bottom: 0,
       flex: 1,
       // Slightly darker overlay in Light Mode to protect white text contrast
       backgroundColor: isDark ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.35)',
@@ -112,6 +135,21 @@ const makeStyles = (colors: any, isDark: boolean) =>
       fontSize: 12,
       fontWeight: 'bold',
       letterSpacing: 0.5,
+    },
+    discountBadge: {
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      alignSelf: 'flex-start',
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 10,
+      marginBottom: 8,
+    },
+    discountBadgeText: {
+      color: '#FFFFFF',
+      fontSize: 12,
+      fontWeight: '900',
+      letterSpacing: 0.3,
+      textTransform: 'uppercase',
     },
     title: {
       color: '#FFFFFF',

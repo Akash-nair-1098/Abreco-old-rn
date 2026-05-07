@@ -44,7 +44,7 @@ export default function CategoryScreen({navigation}: any) {
       };
       const data = await mainCategory(payload);
       setCategoryData(data || []);
-      console.log('categories response is', data);
+      // console.log('categories response is', data);
     } catch (error: any) {
       showToast(error?.message || t('failed_fetch_categories'), 'error');
     } finally {

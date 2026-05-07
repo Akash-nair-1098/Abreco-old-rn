@@ -9,10 +9,20 @@ export const getVoiceLocaleForAppLanguage = (lang: string): string => {
   const map: Record<string, string> = {
     en: 'en-US',
     hi: 'hi-IN',
-    ml: 'ml-IN', // Critical for Malayalam
+    ml: 'ml-IN',
     ar: 'ar-SA',
     es: 'es-ES',
     'zh-CN': 'zh-CN',
+    fr: 'fr-FR',
+    de: 'de-DE',
+    pt: 'pt-BR',
+    ja: 'ja-JP',
+    ko: 'ko-KR',
+    ru: 'ru-RU',
+    tr: 'tr-TR',
+    id: 'id-ID',
+    th: 'th-TH',
+    vi: 'vi-VN',
   };
   return map[normalized] || 'en-US';
 };

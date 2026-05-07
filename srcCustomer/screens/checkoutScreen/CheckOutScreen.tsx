@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   ActivityIndicator,
   StatusBar,
+  TextInput,
 } from 'react-native';
 import AddressBottomSheet from './components/AddressBottomsheet';
 import Icon from '../../../Icon';
@@ -30,6 +31,10 @@ const CheckoutScreen = ({ navigation, route }: any) => {
   );
   const [paymentMethod, setPaymentMethod] = useState('cod');
   const [isSheetVisible, setSheetVisible] = useState(false);
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardHolderName, setCardHolderName] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
 
   const { placeOrder, loading } = useCartStore();
   const { setSelectedAddress, selectedAddress } = useAddressStore();
@@ -44,17 +49,17 @@ const CheckoutScreen = ({ navigation, route }: any) => {
     try {
       const result = await placeOrder(selectedAddress.id, paymentMethod);
       showToast('Order placed successfully!', 'success');
-console.log('order resp is', result.results.data.id);
+console.log('order resp is', result);
 
-      navigation.reset({
-        index: 0,
-        routes: [
-          {
-            name: 'OrderTrackingScreen',
-            params: { orderId: result.results.data.id },
-          },
-        ],
-      });
+      // navigation.reset({
+      //   index: 0,
+      //   routes: [
+      //     {
+      //       name: 'OrderTrackingScreen',
+      //       params: { orderId: result.results.data.id },
+      //     },
+      //   ],
+      // });
     } catch (error: any) {
       const errorMessage =
         error.response?.data?.message || 'Something went wrong';
@@ -248,9 +253,62 @@ console.log('order resp is', result.results.data.id);
             color={colors.success || '#10B981'}
           />
           <PaymentOption
+            icon={SVG_ICONS.wallet}
+            title={t('credit_debit_card', {defaultValue: 'Credit/Debit Card'})}
+            sub={t('pay_securely', {defaultValue: 'Pay securely using card'})}
+            selected={paymentMethod === 'online_card'}
+            onPress={() => setPaymentMethod('online_card')}
+            color={colors.primary}
+          />
+          {paymentMethod === 'online_card' ? (
+            <View style={styles.cardDetailsContainer}>
+              <Text style={styles.cardDetailsTitle}>
+                {t('card_details', {defaultValue: 'Card Details'})}
+              </Text>
+
+              <TextInput
+                value={cardNumber}
+                onChangeText={setCardNumber}
+                placeholder={t('card_number', {defaultValue: 'Card Number'})}
+                placeholderTextColor={colors.textMuted}
+                keyboardType="number-pad"
+                style={styles.cardInput}
+              />
+
+              <TextInput
+                value={cardHolderName}
+                onChangeText={setCardHolderName}
+                placeholder={t('cardholder_name', {defaultValue: 'Cardholder Name'})}
+                placeholderTextColor={colors.textMuted}
+                autoCapitalize="words"
+                style={styles.cardInput}
+              />
+
+              <View style={styles.cardRow}>
+                <TextInput
+                  value={cardExpiry}
+                  onChangeText={setCardExpiry}
+                  placeholder={t('expiry_mm_yy', {defaultValue: 'MM/YY'})}
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="number-pad"
+                  style={[styles.cardInput, styles.cardHalfInput]}
+                />
+                <TextInput
+                  value={cardCvv}
+                  onChangeText={setCardCvv}
+                  placeholder={t('cvv', {defaultValue: 'CVV'})}
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="number-pad"
+                  secureTextEntry
+                  style={[styles.cardInput, styles.cardHalfInput]}
+                />
+              </View>
+            </View>
+          ) : null}
+          <PaymentOption
             disabled
             icon={SVG_ICONS.wallet}
-            title="Company Wallet"
+            title="HorecaHub Wallet"
             sub="Balance: AED 450.00"
             selected={paymentMethod === 'wallet'}
             onPress={() => setPaymentMethod('wallet')}
@@ -285,7 +343,7 @@ console.log('order resp is', result.results.data.id);
       <AddressBottomSheet
         visible={isSheetVisible}
         onClose={() => setSheetVisible(false)}
-        onSelect={addr => {
+        onSelect={(addr: any) => {
           setSelectedAddress(addr);
           setSheetVisible(false);
         }}
@@ -407,6 +465,29 @@ const makeStyles = (colors: any) =>
     iconCircle: { padding: 10, borderRadius: 12, marginRight: 16 },
     paymentTitle: { color: colors.text, fontSize: 16, fontWeight: '700' },
     paymentSub: { color: colors.textMuted, fontSize: 13, marginTop: 1 },
+
+    cardDetailsContainer: {
+      backgroundColor: colors.surface,
+      borderRadius: 20,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginTop: 6,
+    },
+    cardDetailsTitle: { color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: 12 },
+    cardInput: {
+      height: 50,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceVariant,
+      paddingHorizontal: 14,
+      color: colors.text,
+      fontSize: 16,
+      marginBottom: 12,
+    },
+    cardRow: { flexDirection: 'row', gap: 12 },
+    cardHalfInput: { flex: 1, marginBottom: 0 },
 
     footer: {
       padding: 20,

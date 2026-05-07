@@ -36,7 +36,7 @@ const RegistrationStatusScreen = ({ route }: any) => {
       const response = await fetchRegistrationStatus(user_id);
       setStatusData(response?.results?.data);
     } catch (error) {
-      console.error(error);
+      // console.error(error);
     } finally {
       setLoading(false);
       setRefreshing(false);

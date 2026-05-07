@@ -39,7 +39,13 @@ function AddressBootstrapper() {
 
 export function CustomerTabNavigator() {
   const { colors, isDark } = useTheme();
-  const routesToHideSearchBar = ['ProductDetails', 'CartStack', 'Cart', 'Checkout'];
+  const routesToHideSearchBar = [
+    'ProductDetails',
+    'CartStack',
+    'Cart',
+    'Checkout',
+    'VoiceSearchScreen',
+  ];
 
   return (
     <>

@@ -1,4 +1,5 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
+import {useFocusEffect} from '@react-navigation/native';
 import {
   View,
   Text,
@@ -16,6 +17,7 @@ import {useTranslation} from 'react-i18next'; // Added
 import Icon from '../../Icon';
 import {SVG_ICONS} from '../assets/icons/svg';
 import {useTheme} from '../../ThemeContext';
+import {useSearchStore} from '../store/useSearchStore';
 
 export const VoiceSearchScreen = ({route}: any) => {
   const {results: initialResults, term, isGlobalSearch} = route.params;
@@ -24,9 +26,19 @@ export const VoiceSearchScreen = ({route}: any) => {
   const {t} = useTranslation(); // Translation Hook
   const {colors, isDark} = useTheme();
   const styles = makeStyles(colors, isDark);
+  const setSearchText = useSearchStore(s => s.setSearchText);
 
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(initialResults || []);
+
+  /** Clear header search when leaving results (back / tab switch) so the query does not persist. */
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setSearchText('');
+      };
+    }, [setSearchText]),
+  );
 
   useEffect(() => {
     if (isGlobalSearch) {
@@ -41,9 +53,9 @@ export const VoiceSearchScreen = ({route}: any) => {
     try {
       const response = await globalSearchProducts(term);
       setData(response || []);
-      console.log('response is', response);
+      // console.log('response is', response);
     } catch (error) {
-      console.error('Global search failed:', error);
+      // console.error('Global search failed:', error);
     } finally {
       setLoading(false);
     }

@@ -139,6 +139,16 @@ const UnitOptionCard = memo(
             {option.packing}
           </Text>
         ) : null}
+        {option.sku ? (
+          <Text
+            style={[
+              styles.unitSku,
+              !available && styles.unitOptionTextMuted,
+            ]}
+            numberOfLines={1}>
+            {t('sku')}: {option.sku}
+          </Text>
+        ) : null}
         <Text
           style={[
             styles.unitPrice,
@@ -199,6 +209,7 @@ const ProductDetailsScreen = ({navigation, route}: any) => {
     try {
       const results = await getProductDetails({id: productId});
       setProductDetails(results);
+      // console.log('product details is', results);
 
       hasLoadedDetailsRef.current = true;
     } catch (error) {
@@ -214,7 +225,7 @@ const ProductDetailsScreen = ({navigation, route}: any) => {
     fetchProducts();
   }, [fetchProducts]);
 
-      console.log('product details is', productDetails);
+      // console.log('product details is', productDetails);
 
   useEffect(() => {
     if (!productDetails?.offer?.end_time) return;
@@ -280,10 +291,57 @@ const ProductDetailsScreen = ({navigation, route}: any) => {
   const lineTotal = useMemo(() => {
     if (!productDetails) return 0;
     const unit = parseFloat(
-      String(productDetails.sale_price ?? productDetails.price ?? 0),
+      String(
+        productDetails.offer_price ??
+          productDetails.sale_price ??
+          productDetails.price ??
+          0,
+      ),
     );
     return unit * currentQuantity;
   }, [productDetails, currentQuantity]);
+
+  const pricing = useMemo(() => {
+    if (!productDetails) {
+      return {
+        unitPrice: 0,
+        originalUnitPrice: 0,
+        hasOfferPrice: false,
+      };
+    }
+    const unitPrice = parseFloat(
+      String(
+        productDetails.offer_price ??
+          productDetails.sale_price ??
+          productDetails.price ??
+          0,
+      ),
+    );
+    const originalUnitPrice = parseFloat(
+      String(
+        productDetails.original_price ??
+          productDetails.sale_price ??
+          productDetails.price ??
+          0,
+      ),
+    );
+
+    const hasOfferPrice =
+      productDetails.offer_price != null &&
+      String(productDetails.offer_price).trim() !== '' &&
+      !Number.isNaN(unitPrice) &&
+      unitPrice > 0 &&
+      !Number.isNaN(originalUnitPrice) &&
+      originalUnitPrice > unitPrice;
+
+    return {
+      unitPrice: Number.isFinite(unitPrice) ? unitPrice : 0,
+      originalUnitPrice: Number.isFinite(originalUnitPrice)
+        ? originalUnitPrice
+        : 0,
+      hasOfferPrice,
+    };
+  }, [productDetails]);
 
   const mainProductInStock = useMemo(
     () => isStockAvailable(productDetails?.stock_status),
@@ -352,7 +410,7 @@ const ProductDetailsScreen = ({navigation, route}: any) => {
             {currentUnitLabel ? (
               <Text style={styles.orderTotalUnit} numberOfLines={1}>
                 {currentQuantity} × AED{' '}
-                {parseFloat(String(productDetails?.sale_price ?? 0)).toFixed(2)}{' '}
+                {pricing.unitPrice.toFixed(2)}{' '}
                 / {currentUnitLabel}
               </Text>
             ) : null}
@@ -670,9 +728,16 @@ const ProductDetailsScreen = ({navigation, route}: any) => {
             <Text style={styles.categoryLabel}>
               {productDetails.category?.toUpperCase()}
             </Text>
-            <Text style={styles.currentPrice}>
-              AED {parseFloat(productDetails.sale_price).toFixed(2)}
-            </Text>
+            <View style={styles.priceHeaderRight}>
+              <Text style={styles.currentPrice}>
+                AED {pricing.unitPrice.toFixed(2)}
+              </Text>
+              {pricing.hasOfferPrice ? (
+                <Text style={styles.originalPrice} numberOfLines={1}>
+                  AED {pricing.originalUnitPrice.toFixed(2)}
+                </Text>
+              ) : null}
+            </View>
           </View>
 
           <Text style={styles.productTitle}>{displayTitle}</Text>
@@ -778,7 +843,16 @@ const makeStyles = (colors: any, isDark: boolean, winW: number) =>
       fontWeight: '800',
       flex: 1,
     },
+    priceHeaderRight: {alignItems: 'flex-end', justifyContent: 'center'},
     currentPrice: {color: colors.danger, fontSize: 28, fontWeight: '800'},
+    originalPrice: {
+      color: colors.textMuted,
+      fontSize: 14,
+      fontWeight: '700',
+      textDecorationLine: 'line-through',
+      marginTop: 2,
+      opacity: 0.8,
+    },
     productTitle: {
       color: colors.text,
       fontSize: 24,
@@ -1017,6 +1091,7 @@ const makeStyles = (colors: any, isDark: boolean, winW: number) =>
     },
     unitOptionTextMuted: {opacity: 0.65},
     unitPacking: {fontSize: 12, color: colors.textMuted, marginTop: 4},
+    unitSku: {fontSize: 12, color: colors.textMuted, marginTop: 4},
     unitPrice: {fontSize: 16, fontWeight: '800', color: colors.text, marginTop: 8},
     unitPriceMuted: {color: colors.textMuted},
     unitStockLabel: {fontSize: 12, fontWeight: '600', marginTop: 6},

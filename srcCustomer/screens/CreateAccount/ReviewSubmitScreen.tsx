@@ -50,7 +50,7 @@ export const ReviewSubmitScreen = ({ route }: any) => {
           if (params?.user_id) {
             const response = await fetchSavedRegistrationData(params.user_id);
             const data = response?.results?.data;
-            console.log('saved dta ais', data)
+            // console.log('saved dta ais', data)
     
             setApplicationId(data?.application_id);
             if (step === 2) {
@@ -58,7 +58,7 @@ export const ReviewSubmitScreen = ({ route }: any) => {
             }
           }
         } catch {
-         console.log('error occured')
+        //  console.log('error occured')
         } finally {
           // setFetchingData(false);
         }

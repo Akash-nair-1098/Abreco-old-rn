@@ -40,7 +40,7 @@ const OrderDetails = ({ navigation, route }: any) => {
     try {
       const data = await fetchOrderDetail(orderId);
       setOrder(data);
-      console.log('order----', data);
+      // console.log('order----', data);
     } catch (error) {
       Alert.alert(t('error'), t('failed_load_details'));
       NavigationService.goBack();

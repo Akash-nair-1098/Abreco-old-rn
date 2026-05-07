@@ -49,6 +49,18 @@ export const BarcodeSearchScreen = () => {
     }
   };
 
+  const handleBackToTabs = () => {
+    // BarcodeSearchScreen sits inside SearchStack (hidden tab screen).
+    // We want back to always return to the normal bottom tabs, not to VoiceSearchScreen.
+    const parent = navigation.getParent?.();
+    const tabParent = parent?.getParent?.() ?? parent;
+    if (tabParent?.navigate) {
+      tabParent.navigate('Home');
+      return;
+    }
+    navigation.goBack();
+  };
+
   return (
     <View style={styles.container}>
       <Camera
@@ -62,7 +74,7 @@ export const BarcodeSearchScreen = () => {
 
       <TouchableOpacity
         style={[styles.backButton, { top: insets.top + 10 }]}
-        onPress={() => navigation.goBack()}
+        onPress={handleBackToTabs}
       >
         <Icon xml={SVG_ICONS.backIcon} color="#FFFFFF" size={20} />
       </TouchableOpacity>

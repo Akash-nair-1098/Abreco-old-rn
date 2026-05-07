@@ -114,7 +114,7 @@ const CustomerHomeScreen = ({ navigation }: any) => {
         setTodaysDeals(dealsRes || []);
         setCategories((categoriesRes || []).slice(0, MAX_HOME_CATEGORIES));
       } catch (error) {
-        console.error('Fetch error:', error);
+        // console.error('Fetch error:', error);
       } finally {
         setIsInitialLoading(false);
       }

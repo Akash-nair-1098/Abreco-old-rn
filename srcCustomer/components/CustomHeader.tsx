@@ -9,14 +9,11 @@ import {
   Animated,
   Modal,
   FlatList,
-  Alert,
-  Platform,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {
   useNavigation,
   useFocusEffect,
-  useIsFocused,
 } from '@react-navigation/native';
 import {useTranslation} from 'react-i18next';
 import Icon from '../../Icon';
@@ -30,7 +27,10 @@ import i18n from '../utilities/i18n';
 import {globalSearchProducts} from '../api/products/productsApi';
 import {getVoiceLocaleForAppLanguage} from '../utilities/voiceLocale';
 import {startVoiceRecording, stopVoiceRecording} from '../utilities/audioRecord';
-import {transcribeWithOpenAI} from '../utilities/openaiTranscribe';
+import {transcribeWithGemini} from '../utilities/geminiTranscribe';
+import {runVoiceSearchFromTranscript} from '../utilities/voiceSearchFromTranscript';
+import {useCartStore} from '../store/useCartStore';
+import {useToast} from './ToastContext';
 
 const LANGUAGES = [
   {code: 'en', label: 'English'},
@@ -46,14 +46,16 @@ const CustomHeader = ({hideSearchBar = false}: {hideSearchBar?: boolean}) => {
   const {colors, isDark} = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const isFocused = useIsFocused();
 
   const {setSelectedAddress, selectedAddress} = useAddressStore();
   const {searchText, setSearchText} = useSearchStore();
+  const addToCart = useCartStore(state => state.addItem);
+  const {showToast} = useToast();
 
   const [isSheetVisible, setSheetVisible] = useState(false);
   const [isLangSheetVisible, setLangSheetVisible] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [localInput, setLocalInput] = useState('');
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -67,7 +69,7 @@ const CustomHeader = ({hideSearchBar = false}: {hideSearchBar?: boolean}) => {
     hasSearchedRef.current = false;
     latestTranscriptRef.current = '';
     pulseAnim.setValue(1);
-  }, []);
+  }, [pulseAnim]);
 
   useEffect(() => {
     setLocalInput(searchText);
@@ -92,7 +94,7 @@ const CustomHeader = ({hideSearchBar = false}: {hideSearchBar?: boolean}) => {
     } else {
       pulseAnim.setValue(1);
     }
-  }, [isListening]);
+  }, [isListening, pulseAnim]);
 
   useFocusEffect(
     useCallback(() => {
@@ -100,34 +102,10 @@ const CustomHeader = ({hideSearchBar = false}: {hideSearchBar?: boolean}) => {
     }, [cleanupVoice]),
   );
 
-  const toggleVoiceSearch = async () => {
-    if (isListening) {
-      // Stop recording -> transcribe -> search
-      try {
-        const stopped = await stopVoiceRecording();
-        if (!stopped.ok) throw new Error(stopped.error);
-
-        const locale = getVoiceLocaleForAppLanguage(i18n.language);
-        const res = await transcribeWithOpenAI({
-          audioFilePath: stopped.filePath,
-          languageHint: locale,
-        });
-        if (!res.ok) throw new Error(res.error);
-
-        await handleVoiceSearchComplete(res.text);
-      } catch (err: any) {
-        Alert.alert('Voice Error', err?.message || 'Voice recognition failed');
-        cleanupVoice();
-      }
-      return;
-    }
-
+  const handleMicPressIn = async () => {
+    if (isProcessing || isListening) return;
     try {
       await cleanupVoice();
-
-      const locale = getVoiceLocaleForAppLanguage(i18n.language);
-      console.log('🎤 Header Voice Started with:', locale);
-
       setIsListening(true);
       setLocalInput('');
       hasSearchedRef.current = false;
@@ -135,39 +113,53 @@ const CustomHeader = ({hideSearchBar = false}: {hideSearchBar?: boolean}) => {
       const started = await startVoiceRecording();
       if (!started.ok) throw new Error(started.error);
     } catch (err: any) {
-      console.error(err);
-      Alert.alert(
-        'Voice Error',
-        err?.message || 'Voice recognition failed',
-      );
+      showToast(err?.message || t('voice_error_message'), 'error');
+      cleanupVoice();
+    }
+  };
+
+  const handleMicPressOut = async () => {
+    if (isProcessing || !isListening) return;
+    setIsProcessing(true);
+    try {
+      const stopped = await stopVoiceRecording();
+      if (!stopped.ok) throw new Error(stopped.error);
+
+      const locale = getVoiceLocaleForAppLanguage(i18n.language);
+      const res = await transcribeWithGemini({
+        audioFilePath: stopped.filePath,
+        languageHint: locale,
+      });
+      if (!res.ok) throw new Error(res.error);
+
+      await handleVoiceSearchComplete(res.text);
+    } catch (err: any) {
+      showToast(err?.message || t('voice_error_message'), 'error');
+    } finally {
+      setIsProcessing(false);
       cleanupVoice();
     }
   };
 
   const handleVoiceSearchComplete = async (text: string) => {
-    const finalQuery = text.trim();
-    if (!finalQuery) {
-      cleanupVoice();
-      return;
-    }
-
-    setLocalInput(finalQuery);
-    setSearchText(finalQuery);
-
     try {
-      const results = await globalSearchProducts(finalQuery);
-      navigation.navigate('SearchStack', {
-        screen: 'VoiceSearchScreen',
-        params: {
-          results: results || [],
-          term: finalQuery,
-          isGlobalSearch: true,
+      await runVoiceSearchFromTranscript(text, {
+        setSearchText,
+        showToast,
+        t,
+        enableAddToCartIntent: true,
+        addToCart,
+        onResults: (term, results) => {
+          setLocalInput(term);
+          navigation.navigate('SearchStack', {
+            screen: 'VoiceSearchScreen',
+            params: {
+              results: results || [],
+              term,
+              isGlobalSearch: true,
+            },
+          });
         },
-      });
-    } catch {
-      navigation.navigate('SearchStack', {
-        screen: 'VoiceSearchScreen',
-        params: {results: [], term: finalQuery, isGlobalSearch: true},
       });
     } finally {
       cleanupVoice();
@@ -259,7 +251,11 @@ const CustomHeader = ({hideSearchBar = false}: {hideSearchBar?: boolean}) => {
 
           <TextInput
             style={styles.input}
-            placeholder={isListening ? t('listening') : t('search_placeholder')}
+            placeholder={
+              isListening
+                ? t('voice_listening', {defaultValue: t('listening')})
+                : t('search_placeholder')
+            }
             placeholderTextColor={
               isListening ? colors.primary : colors.textMuted
             }
@@ -280,7 +276,14 @@ const CustomHeader = ({hideSearchBar = false}: {hideSearchBar?: boolean}) => {
             </Pressable>
           )}
 
-          <TouchableOpacity style={styles.searchActionButton}>
+          <TouchableOpacity
+            style={styles.searchActionButton}
+            activeOpacity={0.8}
+            onPress={() =>
+              navigation.navigate('SearchStack', {
+                screen: 'BarcodeSearchScreen',
+              })
+            }>
             <Icon
               xml={SVG_ICONS.barcodeScan}
               color={colors.textMuted}
@@ -288,8 +291,10 @@ const CustomHeader = ({hideSearchBar = false}: {hideSearchBar?: boolean}) => {
             />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={toggleVoiceSearch}
+          <Pressable
+            onPressIn={handleMicPressIn}
+            onPressOut={handleMicPressOut}
+            disabled={isProcessing}
             style={styles.micButton}>
             {isListening && (
               <Animated.View
@@ -301,7 +306,7 @@ const CustomHeader = ({hideSearchBar = false}: {hideSearchBar?: boolean}) => {
               color={isListening ? colors.primary : colors.textMuted}
               size={22}
             />
-          </TouchableOpacity>
+          </Pressable>
         </View>
       )}
 
