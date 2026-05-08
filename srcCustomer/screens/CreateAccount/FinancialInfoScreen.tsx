@@ -13,6 +13,7 @@ import { registerBankDetails, fetchSavedRegistrationData } from '../../api/auth/
 import { SVG_ICONS } from '../../assets/icons/svg';
 import { useTheme } from '../../../ThemeContext';
 import { getApiErrorMessage } from '../../utilities/apiErrorMessage';
+import {useTranslation} from 'react-i18next';
 
 export const FinancialInfoScreen = ({ route }: any) => {
   const { params } = route;
@@ -21,6 +22,7 @@ export const FinancialInfoScreen = ({ route }: any) => {
 
   const { colors, isDark } = useTheme();
   const styles = makeStyles(colors, isDark);
+  const {t} = useTranslation();
   const themedLocalStyles = makeLocalStyles(colors);
 
   const isRejectedFlow: boolean = params?.isRejected || false;
@@ -165,7 +167,7 @@ export const FinancialInfoScreen = ({ route }: any) => {
 
     try {
       await registerBankDetails(payload);
-      showToast('Bank details saved successfully', 'success');
+      showToast(t('bank_details_saved_successfully'), 'success');
       navigateNext();
     } catch (error: any) {
       showToast(getApiErrorMessage(error, 'Failed to save bank details'), 'error');
@@ -186,7 +188,7 @@ export const FinancialInfoScreen = ({ route }: any) => {
       >
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 60 }}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.subtitle, { marginTop: 12 }]}>Loading...</Text>
+          <Text style={[styles.subtitle, { marginTop: 12 }]}>{t('loading')}</Text>
         </View>
       </RegistrationLayout>
     );

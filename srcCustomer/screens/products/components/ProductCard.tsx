@@ -19,10 +19,12 @@ import {
 import { useToast } from '../../../components/ToastContext';
 import { useWishlistStore } from '../../../store/useWishlistStore';
 import { getProductListingStyles } from '../style';
+import {useTranslation} from 'react-i18next';
 
 const ProductCard = ({ item }: { item: any }) => {
   const dispatch = useAppDispatch();
   const { showToast } = useToast();
+  const {t} = useTranslation();
   const { colors, isDark } = useTheme();
 
   // Initialize dynamic styles
@@ -49,9 +51,9 @@ const ProductCard = ({ item }: { item: any }) => {
           quantity: 1, // Initialize with 1 on first add
         }),
       );
-      showToast(`${item.title} added to cart!`, 'success');
+      showToast(`${item.title} ${t('added_to_cart_msg')}`, 'success');
     } catch (error) {
-      showToast('Failed to add item. Try again.', 'error');
+      showToast(t('failed_add_item'), 'error');
     }
   };
 
@@ -62,7 +64,7 @@ const ProductCard = ({ item }: { item: any }) => {
       }
       navigation.navigate('CartStack');
     } catch (error) {
-      showToast('Failed to add item. Try again.', 'error');
+      showToast(t('failed_add_item'), 'error');
     }
   };
 

@@ -27,6 +27,7 @@ import Dropdown from '../../components/DropDown';
 import { useTheme } from '../../../ThemeContext';
 import Icon from '../../../Icon';
 import { getApiErrorMessage } from '../../utilities/apiErrorMessage';
+import {useTranslation} from 'react-i18next';
 
 const ROLE_OPTIONS: DropdownOption[] = [
   { id: 'Manager', name: 'Manager' },
@@ -40,6 +41,7 @@ const stripCountryCode = (phone: string, cc: string) =>
 
 export const AddContactsScreen = ({ route }: any) => {
   const { params } = route;
+  const {t} = useTranslation();
   const { showToast } = useToast();
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
 
@@ -174,7 +176,7 @@ export const AddContactsScreen = ({ route }: any) => {
     }
 
     if (!validate()) {
-      showToast('Please fill all required fields', 'error');
+      showToast(t('please_fill_all_fields'), 'error');
       return;
     }
 
@@ -211,7 +213,7 @@ export const AddContactsScreen = ({ route }: any) => {
 
     try {
       await registerContactInfo(payload);
-      showToast('Contacts saved successfully', 'success');
+      showToast(t('contacts_saved_successfully'), 'success');
       navigateNext();
     } catch (error: any) {
       showToast(getApiErrorMessage(error, 'Failed to save contacts'), 'error');
@@ -224,7 +226,7 @@ export const AddContactsScreen = ({ route }: any) => {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={[styles.subtitle, { marginTop: 12 }]}>Loading...</Text>
+        <Text style={[styles.subtitle, { marginTop: 12 }]}>{t('loading')}</Text>
       </SafeAreaView>
     );
   }

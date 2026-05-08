@@ -17,11 +17,13 @@ import LoadingScreen from '../../components/LoadingScreen';
 import { useFocusEffect } from '@react-navigation/native';
 import { useToast } from '../../components/ToastContext';
 import { useTheme } from '../../../ThemeContext';
+import {useTranslation} from 'react-i18next';
 
 const WishlistScreen = ({ navigation }: any) => {
   const { wishlist, loading, fetchWishlist, toggleWishlist, moveToCart } =
     useWishlistStore();
   const { showToast } = useToast();
+  const {t} = useTranslation();
   const { colors, isDark } = useTheme();
   const styles = makeStyles(colors, isDark);
   const fetchCart = useCartStore(state => state.fetchCart);
@@ -36,9 +38,9 @@ const WishlistScreen = ({ navigation }: any) => {
     try {
       await moveToCart(wishlistItem.id);
       if (fetchCart) await fetchCart();
-      showToast('Item moved to cart!', 'success');
+      showToast(t('item_moved_to_cart'), 'success');
     } catch (error: any) {
-      showToast(error?.message ?? 'Failed to move to cart', 'error');
+      showToast(error?.message ?? t('failed_to_move_to_cart'), 'error');
     }
   };
 
@@ -46,7 +48,7 @@ const WishlistScreen = ({ navigation }: any) => {
     try {
       await toggleWishlist(wishlistItem.product);
     } catch (error: any) {
-      showToast(error?.message ?? 'Failed to remove item', 'error');
+      showToast(error?.message ?? t('failed_to_remove_item'), 'error');
     }
   };
 
@@ -64,7 +66,9 @@ const WishlistScreen = ({ navigation }: any) => {
         >
           <Icon xml={SVG_ICONS.backIcon} color={colors.text} size={24} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Wishlist ({wishlist.length})</Text>
+        <Text style={styles.headerTitle}>
+          {t('wishlist')} ({wishlist.length})
+        </Text>
       </View>
 
       <FlatList

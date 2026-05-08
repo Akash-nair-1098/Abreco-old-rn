@@ -22,10 +22,12 @@ import { RegisterPayload } from '../../api/auth/auth.type';
 import { COUNTRY_CODES } from '../../utilities/Strings';
 import Dropdown from '../../components/DropDown';
 import { getApiErrorMessage } from '../../utilities/apiErrorMessage';
+import {useTranslation} from 'react-i18next';
 
 const CreateAccountScreen = ({ navigation }: any) => {
   const { colors, isDark } = useTheme(); // Extracted theme colors
   const { showToast } = useToast();
+  const {t} = useTranslation();
 
   const styles = makeStyles(colors); // Using a stylesheet factory
 
@@ -72,7 +74,7 @@ const CreateAccountScreen = ({ navigation }: any) => {
   // Handle Send OTP
   const handleSendOTP = async () => {
     if (mobile?.length < 8) {
-      setErrors({ ...errors, mobile: 'Enter a valid mobile number' });
+      setErrors({ ...errors, mobile: t('enter_valid_mobile_number') });
       return;
     }
 
@@ -83,7 +85,7 @@ const CreateAccountScreen = ({ navigation }: any) => {
         ph_cc: selectedCountryCode,
         phone_number: mobile,
       });
-      showToast('OTP sent successfully!', 'success');
+      showToast(t('otp_sent_successfully'), 'success');
       setOtpVisible(true);
       setCountdown(60);
       setErrors({ ...errors, mobile: null }); 
@@ -125,7 +127,7 @@ const CreateAccountScreen = ({ navigation }: any) => {
       };
 
       const result = await registerCustomer(payload);
-      showToast('Account Created!', 'success');
+      showToast(t('account_created'), 'success');
 
       navigation.navigate('BusinessDetails', {
         secret_token: result.secret_token,
@@ -351,76 +353,94 @@ const CreateAccountScreen = ({ navigation }: any) => {
   );
 };
 
-const makeStyles = (colors: any) => StyleSheet.create({
-  container: { flex: 1 },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 40,
-    marginTop: SCREEN_HEIGHT * 0.05,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: 30,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  title: { fontSize: 28, fontWeight: 'bold', color: colors.text },
-  subtitle: { color: colors.textMuted, fontSize: 14, marginTop: 4, marginBottom: 24 },
-  label: { color: colors.textMuted, fontSize: 14, marginBottom: 8, marginTop: 12 },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    height: 50,
-  },
-  inputError: { borderColor: '#EF4444' },
-  errorText: { color: '#EF4444', fontSize: 12, marginTop: 4, marginLeft: 4 },
-  iconPrefix: { paddingLeft: 12 },
-  textInput: { flex: 1, color: colors.text, fontSize: 15, marginLeft: 10 },
-  verifyText: {
-    color: colors.primary,
-    fontWeight: 'bold',
-    paddingRight: 15,
-    fontSize: 13,
-  },
-  countryDrop: {
-    width: 100,
-    borderRightWidth: 1,
-    borderRightColor: colors.border,
-    backgroundColor: 'transparent',
-    borderWidth: 0,
-    height: '100%',
-  },
-  row: { flexDirection: 'row', marginTop: 12 },
-  checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 24,
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderWidth: 2,
-    borderColor: colors.border,
-    borderRadius: 6,
-    marginRight: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxLabel: { color: colors.textMuted, fontSize: 14, flex: 1 },
-  link: { color: colors.primary, fontWeight: '600' },
-  btnWrapper: { marginTop: 32 ,backgroundColor:"#FC0808",},
-  gradientBtn: {
-    height: 55,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  btnText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
-});
+const makeStyles = (colors: any) =>
+  StyleSheet.create({
+    container: {flex: 1},
+    scrollContent: {
+      padding: 20,
+      paddingBottom: 40,
+      marginTop: SCREEN_HEIGHT * 0.05,
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: 30,
+      padding: 24,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    title: {fontSize: 28, fontWeight: 'bold', color: colors.text},
+    subtitle: {
+      color: colors.textMuted,
+      fontSize: 14,
+      marginTop: 4,
+      marginBottom: 24,
+    },
+    label: {
+      color: colors.textMuted,
+      fontSize: 14,
+      marginBottom: 8,
+      marginTop: 12,
+    },
+    inputContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      height: 50,
+    },
+    inputError: {borderColor: '#EF4444'},
+    errorText: {color: '#EF4444', fontSize: 12, marginTop: 4, marginLeft: 4},
+    iconPrefix: {paddingLeft: 12},
+    textInput: {flex: 1, color: colors.text, fontSize: 15, marginLeft: 10},
+    verifyText: {
+      color: colors.primary,
+      fontWeight: 'bold',
+      paddingRight: 15,
+      fontSize: 13,
+    },
+    countryDrop: {
+      width: 100,
+      borderRightWidth: 1,
+      borderRightColor: colors.border,
+      backgroundColor: 'transparent',
+      borderWidth: 0,
+      height: '100%',
+    },
+    row: {flexDirection: 'row', marginTop: 12},
+    checkboxContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 24,
+    },
+    checkbox: {
+      width: 22,
+      height: 22,
+      borderWidth: 2,
+      borderColor: colors.border,
+      borderRadius: 6,
+      marginRight: 12,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    checkboxLabel: {color: colors.textMuted, fontSize: 14, flex: 1},
+    link: {color: colors.primary, fontWeight: '600'},
+    btnWrapper: {
+      marginTop: 32,
+      backgroundColor: '#FC0808',
+      height: 55,
+      borderRadius: 12,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    gradientBtn: {
+      height: 55,
+      borderRadius: 12,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    btnText: {color: 'white', fontSize: 16, fontWeight: 'bold'},
+  });
 
 export default CreateAccountScreen;

@@ -24,11 +24,13 @@ import { useToast } from '../../components/ToastContext';
 import { registerKYCDocuments, fetchSavedRegistrationData } from '../../api/auth/authApi';
 import { useTheme } from '../../../ThemeContext';
 import { getApiErrorMessage } from '../../utilities/apiErrorMessage';
+import {useTranslation} from 'react-i18next';
 
 export const KYCUploadsScreen = ({ route }: any) => {
   const { params } = route;
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const { showToast } = useToast();
+  const {t} = useTranslation();
 
   const { colors, isDark } = useTheme();
   const styles = makeStyles(colors, isDark);
@@ -133,7 +135,7 @@ export const KYCUploadsScreen = ({ route }: any) => {
       const res = await DocumentPicker.pickSingle({ type: [types.pdf, types.images] });
       const MAX_FILE_SIZE = 5 * 1024 * 1024;
       if (res.size && res.size > MAX_FILE_SIZE) {
-        showToast('File size must be less than 5MB', 'error');
+        showToast(t('file_size_must_be_less_than_5mb'), 'error');
         return;
       }
       const updateFn = (prev: any[]) =>
@@ -142,7 +144,7 @@ export const KYCUploadsScreen = ({ route }: any) => {
       if (isOther) setOtherDocs(updateFn);
       else setDocuments(updateFn);
     } catch (err) {
-      if (!DocumentPicker.isCancel(err)) showToast('Selection error', 'error');
+      if (!DocumentPicker.isCancel(err)) showToast(t('selection_error'), 'error');
     }
   };
 

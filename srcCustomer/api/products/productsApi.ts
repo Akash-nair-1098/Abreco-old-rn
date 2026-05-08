@@ -321,3 +321,14 @@ export const getStatementOfAccounts = async (
     throw error;
   }
 };
+
+
+export const initiatePayment = async (orderId: string) => {
+   try {
+     const response = await api.post(`order/${orderId}/initiate-payment`);
+     return response.data;
+   } catch (error) {
+     console.error('API Error', error);
+     throw error;
+   }
+};

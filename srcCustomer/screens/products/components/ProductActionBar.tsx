@@ -13,6 +13,7 @@ import Icon from '../../../../Icon';
 import {SVG_ICONS} from '../../../assets/icons/svg';
 import {useToast} from '../../../components/ToastContext';
 import {useTheme} from '../../../../ThemeContext';
+import {useTranslation} from 'react-i18next';
 
 interface PropTypes {
   handleAddCart: (quantity: number) => void;
@@ -38,6 +39,7 @@ const ProductActionBar = ({
   const [quantity, setQuantity] = useState(1);
   const [inputValue, setInputValue] = useState('1');
   const {showToast} = useToast();
+  const {t} = useTranslation();
   const {colors, isDark} = useTheme();
   const styles = makeStyles(colors, isDark, isOutOfStock);
 
@@ -79,7 +81,7 @@ const ProductActionBar = ({
 
   const onAddPress = () => {
     if (isOutOfStock) {
-      showToast('Item is OUT OF STOCK', 'error');
+      showToast(t('out_of_stock_toast'), 'error');
     } else {
       handleAddCart(quantity);
     }
@@ -87,7 +89,7 @@ const ProductActionBar = ({
 
   const onBuyPress = () => {
     if (isOutOfStock) {
-      showToast('Item is OUT OF STOCK!', 'error');
+      showToast(t('out_of_stock_toast'), 'error');
     } else {
       handleBuyNow(quantity);
     }

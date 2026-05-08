@@ -42,7 +42,7 @@
     "react-native-screens": "3.29.0",
     "react-native-svg": "14.1.0",
     "react-native-vector-icons": "^10.3.0",
-    "react-native-webview": "13.6.3",
+    "react-native-webview": "^13.6.3",
     "react-redux": "^9.2.0",
     "whisper.rn": "^0.5.5",
     "zustand": "^5.0.11"
